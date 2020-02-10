@@ -542,7 +542,7 @@ bool Core::is_done()
 
 bool Core::must_add_trace()
 {
-    return (traceVec.size() < 100000);
+    return (traceVec.size() < 10000);
 }
 
 void Core::tlb_invalidate(uint64_t addr, uint64_t tid, bool is_large)

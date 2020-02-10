@@ -43,7 +43,7 @@ std::shared_ptr<migration_model> page_migration_model;
 
 uint64_t initiator_penalty = 0, victim_penalty = 0;
 
-uint64_t num_dram_pages = 0, num_nvm_disk_pages = 0, migration_threshold = 0;
+uint64_t num_dram_pages = 0, num_nvm_disk_pages = 0, migration_threshold = 0, tick_with_empty_tracevec = 0;
 std::string page_migration_policy = "none";
 
 std::unordered_map <Request *, int> request_queue;
@@ -293,6 +293,7 @@ int main(int argc, char * argv[])
 			if((r != nullptr) && r->m_core_id >= 0 && r->m_core_id < NUM_CORES
 					&& cores[r->m_core_id]->must_add_trace())
 			{
+
 				cores[r->m_core_id]->add_trace(r);
 
 				if(num_traces_added % 1000000 == 0)
@@ -311,6 +312,14 @@ int main(int argc, char * argv[])
 
 		for(int i = 0; i < NUM_CORES; i++)
 		{
+			if (cores[i]->traceVec.size() == 0)
+			{
+				if (tp.global_ts > (tp.skip_instructions + tp.warmup_period))
+				{
+					tick_with_empty_tracevec++;
+				}
+			}
+
 			cores[i]->tick(tp.config, initiator_penalty, victim_penalty);
 
 			done = (done & cores[i]->is_done()) && (cores[i]->traceVec.size() == 0)
@@ -444,7 +453,7 @@ void print_results(std::ofstream &outFile, TraceProcessor &tp, std::string bench
 	outFile << "\nNum NVM/Disk Pages : " << num_nvm_disk_pages;
 	outFile << "\nMigration threshold : " << migration_threshold;
 	outFile << "\nMigration Policy : " << page_migration_policy;
-	outFile << "\n\n********************************************\n\n";
+	outFile << "\n\n**********************************************\n\n";
 
 	for(int i = 0; i < NUM_CORES;i++)
 	{
@@ -571,6 +580,7 @@ void print_results(std::ofstream &outFile, TraceProcessor &tp, std::string bench
 	if(!tp.is_multicore)
 	{
 		outFile << "Cycles = " << total_num_cycles << "\n";
+		outFile << "Total ticks with tracevec empty = " << tick_with_empty_tracevec << "\n";
 		outFile << "Instructions = " << (total_instructions) << "\n";
 		if(total_num_cycles > 0)
 		{
