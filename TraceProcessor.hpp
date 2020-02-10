@@ -76,13 +76,13 @@ public:
     uint64_t *last_ts;
     uint64_t global_ts;
 
-//    uint64_t skip_instructions = 10000000000; //10B //Remember to uncomment before actual runs
-//    uint64_t warmup_period = 500000000; //500M
-//    uint64_t instrument_instructions = 5000000000; //5B
+    uint64_t skip_instructions = 10000000000; //10B //Remember to uncomment before actual runs
+    uint64_t warmup_period = 500000000; //500M
+    uint64_t instrument_instructions = 5000000000; //5B
 
-    uint64_t skip_instructions = 10000000000; //1B
-    uint64_t warmup_period = 0; //500M
-    uint64_t instrument_instructions = 1000000; //5B
+//    uint64_t skip_instructions = 10000000000; //1B
+//    uint64_t warmup_period = 0; //500M
+//    uint64_t instrument_instructions = 1000000; //5B
 
     bool is_multicore = false;
     uint64_t total_instructions_in_real_run[NUM_CORES];
