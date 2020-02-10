@@ -347,7 +347,7 @@ int main(int argc, char * argv[])
 				timeout = true;
 			}
 
-			if(cores[i]->m_num_retired % 1000 == 0)
+			if(cores[i]->m_num_retired % 1000000 == 0)
 			{
 				std::cout << "[NUM_INSTR_RETIRED] Core " << i << ": " << cores[i]->m_num_retired << "\n";
 				print_results(outFile, tp, tp.benchname);
