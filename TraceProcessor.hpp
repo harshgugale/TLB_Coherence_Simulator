@@ -76,13 +76,13 @@ public:
     uint64_t *last_ts;
     uint64_t global_ts;
 
-    uint64_t skip_instructions = 10000000000; //10B //Remember to uncomment before actual runs
-    uint64_t warmup_period = 0;//500000000; //500M
-    uint64_t instrument_instructions = 5000000000; //5B
+//    uint64_t skip_instructions = 10000000000; //10B //Remember to uncomment before actual runs
+//    uint64_t warmup_period = 500000000; //500M
+//    uint64_t instrument_instructions = 5000000000; //5B
 
-//    uint64_t skip_instructions = 10000000000; //1B
-//    uint64_t warmup_period = 0; //500M
-//    uint64_t instrument_instructions = 10000; //5B
+    uint64_t skip_instructions = 10000000000; //1B
+    uint64_t warmup_period = 0; //500M
+    uint64_t instrument_instructions = 1000000; //5B
 
     bool is_multicore = false;
     uint64_t total_instructions_in_real_run[NUM_CORES];
@@ -97,6 +97,7 @@ public:
     uint64_t tid_offset = 0;
     std::string config = "", benchname = "", env = "", mig_policy = "";
     uint64_t dram_size = 0 , nvm_disk_size = 0, migration_threshold = 0, migration_iter = 0;
+    uint64_t addition_to_migration_queue = 0, popped_migration_queue = 0;
     
     uint64_t actual_shootdown_identifier = 0xffffffffffffffff;
 

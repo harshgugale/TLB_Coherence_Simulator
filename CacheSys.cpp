@@ -219,6 +219,8 @@ void CacheSys::tlb_invalidate(uint64_t addr, uint64_t tid, bool is_large)
 {
     assert(m_is_translation_hier);
 
+    bool partial_lookup_success = false;
+
     int start = (is_large) ? 1 : 0;
 
     for(int i = start; i < m_caches.size(); i += 2)
@@ -232,6 +234,23 @@ void CacheSys::tlb_invalidate(uint64_t addr, uint64_t tid, bool is_large)
             std::cout << "[INVALIDATION] Removing from presence map, Addr = " << std::hex << addr << std::dec << ", tid = " << tid << ", is_large = " << m_caches[i]->get_is_large_page_tlb() << ", on core = " << m_core_id << "\n"; 
             tp->remove_from_presence_map(addr, tid, m_caches[i]->get_is_large_page_tlb(), m_core_id);
         }
+    }
+
+    TraceProcessor * m_tp_ptr = m_caches[0]->get_traceprocessor();
+
+    partial_lookup_success = (m_caches[start]->cotaglessLookup(addr,tid,is_large) | m_caches[start+2]->cotaglessLookup(addr,tid,is_large));
+
+    if (!partial_lookup_success)
+    {
+    	if (m_tp_ptr->global_ts > (m_tp_ptr->skip_instructions + m_tp_ptr->warmup_period))
+    	{
+    		m_core->num_false_invalidations++;
+    	}
+    }
+
+    if (m_tp_ptr->global_ts > (m_tp_ptr->skip_instructions + m_tp_ptr->warmup_period))
+    {
+    	m_core->num_tr_invalidations++;
     }
 
     for(int i = start; i < m_caches.size(); i += 2)

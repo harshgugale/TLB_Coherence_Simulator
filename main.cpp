@@ -347,7 +347,7 @@ int main(int argc, char * argv[])
 				timeout = true;
 			}
 
-			if(cores[i]->m_num_retired % 1000000 == 0)
+			if(cores[i]->m_num_retired % 1000 == 0)
 			{
 				std::cout << "[NUM_INSTR_RETIRED] Core " << i << ": " << cores[i]->m_num_retired << "\n";
 				print_results(outFile, tp, tp.benchname);
@@ -362,6 +362,12 @@ int main(int argc, char * argv[])
 		if(done == true)
 		{
 			std::cout << "[INFO]Done is true " << std::endl;
+			std::cout << "[INFO]Migration shootdown queue size at exit is " << tp.migration_shootdown_queue.size() << std::endl;
+
+			for(auto i = tp.migration_shootdown_queue.begin(); i != tp.migration_shootdown_queue.end(); i++)
+			{
+				delete (*i);
+			}
 
 			for(int i = 0; i < NUM_CORES; i++)
 			{
@@ -370,6 +376,8 @@ int main(int argc, char * argv[])
 						cores[i]->traceVec.size() << " tp.global_ts " <<
 						tp.global_ts << std::endl;
 			}
+
+			print_results(outFile, tp, tp.benchname);
 
 		}
 	}
@@ -422,8 +430,21 @@ void print_results(std::ofstream &outFile, TraceProcessor &tp, std::string bench
 	double l2_tlb_misses = 0;
 	uint64_t total_guest_shootdowns = 0;
 	uint64_t total_host_shootdowns = 0;
+	uint64_t total_page_invalidations = 0; //This excludes the guest/host shootdowns
 	uint64_t total_tr_invalidations = 0;
 	uint64_t total_false_invalidations = 0;
+
+	outFile << "***************Configurations*******************" << "\n\n";
+	outFile << "Benchname : " << tp.benchname;
+	outFile << "\nSimulator Config " << tp.config;
+	outFile << "\nInitiator penalty " << initiator_penalty;
+	outFile << "\nVictim penalty : " << victim_penalty;
+	outFile << "\nMax TS to Simulate : " << tp.warmup_period + tp.skip_instructions + tp.instrument_instructions;
+	outFile << "\nNum DRAM pages : " << num_dram_pages;
+	outFile << "\nNum NVM/Disk Pages : " << num_nvm_disk_pages;
+	outFile << "\nMigration threshold : " << migration_threshold;
+	outFile << "\nMigration Policy : " << page_migration_policy;
+	outFile << "\n\n********************************************\n\n";
 
 	for(int i = 0; i < NUM_CORES;i++)
 	{
@@ -435,12 +456,17 @@ void print_results(std::ofstream &outFile, TraceProcessor &tp, std::string bench
 		outFile << "Instructions = " << (cores[i]->instructions_retired) << "\n";
 		outFile << "Stall cycles = " << cores[i]->num_stall_cycles << "\n";
 		outFile << "Num shootdowns = " << cores[i]->num_shootdown << "\n";
+		outFile << "False translation invalidations = " << cores[i]->num_false_invalidations << "\n";
+		outFile << "Translation invalidations = " << cores[i]->num_tr_invalidations << "\n";
 		total_num_cycles += cores[i]->num_cycles;
 		total_stall_cycles += cores[i]->num_stall_cycles;
 		total_shootdowns += cores[i]->num_shootdown;
 		total_instructions += cores[i]->instructions_retired;
 		total_guest_shootdowns+=cores[i]->num_guest_shootdowns;
 		total_host_shootdowns+=cores[i]->num_host_shootdowns;
+		total_page_invalidations+=cores[i]->page_invalidations;
+		total_tr_invalidations+=cores[i]->num_tr_invalidations;
+		total_false_invalidations+=cores[i]->num_false_invalidations;
 
 		outFile << "[L1 D$] data hits = " << l1_data_caches[i]->num_data_hits << "\n";
 		outFile << "[L1 D$] translation hits = " << l1_data_caches[i]->num_tr_hits << "\n";
@@ -480,10 +506,6 @@ void print_results(std::ofstream &outFile, TraceProcessor &tp, std::string bench
 		outFile << "[L1 SMALL TLB] MSHR translation hits = " << l1_tlb[2 * i]->num_mshr_tr_hits << "\n";
 		outFile << "[L1 SMALL TLB] data accesses = " << l1_tlb[2 * i]->num_data_accesses << "\n";
 		outFile << "[L1 SMALL TLB] translation accesses = " << l1_tlb[2 * i]->num_tr_accesses << "\n";
-		outFile << "[L1 SMALL TLB] Translation invalidations = " << l1_tlb[2 * i]->num_tr_invalidations << "\n";
-		outFile << "[L1 SMALL TLB] False translation invalidations = " << l1_tlb[2 * i]->num_false_invalidations << "\n";
-		total_tr_invalidations+=l1_tlb[2 * i]->num_tr_invalidations;
-		total_false_invalidations+=l1_tlb[2 * i]->num_false_invalidations;
 
 		if(cores[i]->m_num_retired)
 		{
@@ -557,8 +579,14 @@ void print_results(std::ofstream &outFile, TraceProcessor &tp, std::string bench
 		outFile << "Stall cycles = " << total_stall_cycles << "\n";
 		outFile << "Total shootdowns = " << total_shootdowns << "\n";
 		outFile << "Num migration shootdowns = " << page_migration_model->num_migrations << "\n";
+		outFile << "Total additions to the Migration Request Queue = " << tp.addition_to_migration_queue << "\n";
+		outFile << "Total Pops of the Migration Request Queue = " << tp.popped_migration_queue << "\n";
+		outFile << "Total single evictions = " << page_migration_model->eviction_count_1 << "\n";
+		outFile << "Total double evictions = " << page_migration_model->eviction_count_2 << "\n";
+		outFile << "Prefetch already in DRAM = " << page_migration_model->prefetch_already_in_dram << "\n";
 		outFile << "Num Guest shootdowns = " << total_guest_shootdowns << "\n";
 		outFile << "Num Host shootdowns = " << total_host_shootdowns << "\n";
+		outFile << "Total page invalidations (Excludes guest/host shootdowns) = " << total_page_invalidations << "\n";
 		outFile << "Total translation invalidations = " << total_tr_invalidations << "\n";
 		outFile << "Total False invalidations = " << total_false_invalidations << "\n";
 		outFile << "[L1 D$] Aggregate MPKI = " << (l1d_agg_mpki/(NUM_CORES * 1000)) << "\n";

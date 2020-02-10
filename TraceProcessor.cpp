@@ -351,6 +351,9 @@ Request* TraceProcessor::generateRequest()
 			Request * req = migration_shootdown_queue.front();
 			std::cout << "Returning migration shootdown : " << *req;
 
+			if (global_ts > (skip_instructions + warmup_period))
+				popped_migration_queue++;
+
 			migration_shootdown_queue.pop_front();
 			return req;
 		}

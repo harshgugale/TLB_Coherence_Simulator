@@ -105,8 +105,6 @@ public:
     uint64_t num_data_coh_msgs = 0;
     uint64_t num_tr_coh_msgs = 0;
     uint64_t mem_accesses = 0;
-    uint64_t num_tr_invalidations = 0;
-    uint64_t num_false_invalidations = 0;
 
     Cache(int num_sets,
     	int associativity,
@@ -167,11 +165,14 @@ public:
     uint64_t get_tag(const uint64_t addr);
     uint64_t get_line_offset(const uint64_t addr);
     bool is_found(const std::vector<CacheLine>& set, const uint64_t tag, bool is_translation, uint64_t tid, unsigned int &hit_pos);
+    bool is_partially_found(const std::vector<CacheLine>& set, const uint64_t tag, bool is_translation,
+    		uint64_t tid, unsigned int &hit_pos, uint64_t partial_addr, bool is_large);
     bool is_hit(const std::vector<CacheLine> &set, const uint64_t tag, bool is_translation, uint64_t tid, unsigned int &hit_pos);
     void invalidate(const uint64_t addr, uint64_t tid, bool is_translation);
     void evict(uint64_t set_num, const CacheLine &line, int req_core_id);
     RequestStatus lookupAndFillCache(Request &r, unsigned int curr_latency = 0, CoherenceState propagate_coh_state = INVALID);
     bool lookupCache(Request &r);
+    bool cotaglessLookup(uint64_t addr, uint64_t tid, bool is_large);
     void add_lower_cache(const std::weak_ptr<Cache>& c);
     void add_higher_cache(const std::weak_ptr<Cache>& c);
     void set_level(unsigned int level);
@@ -195,5 +196,19 @@ public:
     void add_migration_model(std::shared_ptr <migration_model> page_migration_model);
     std::ofstream * get_mem_file_ptr();
     TraceProcessor* get_traceprocessor();
+
+    uint64_t get_num_sets()
+    {
+    	return m_num_sets;
+    }
+    uint64_t get_num_index_bits()
+    {
+    	return m_num_index_bits;
+    }
+    uint64_t get_num_offset_bits()
+    {
+    	return m_num_line_offset_bits;
+    }
+
 };
 #endif /* Cache_hpp */

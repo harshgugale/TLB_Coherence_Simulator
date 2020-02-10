@@ -75,6 +75,10 @@ uint64_t Core::getL3TLBAddr(uint64_t va, kind type, uint64_t tid, bool is_large,
         l3_tlb_base_address = m_l3_small_tlb_base;
     }
     
+//    std::cout << "Index bits for L3 TLB : " << m_tlb_hier->m_caches[last_level_small_tlb_idx]->get_num_index_bits()
+//    		<< "\nLine offsetbits for L3 TLB : " << m_tlb_hier->m_caches[last_level_small_tlb_idx]->get_num_offset_bits()
+//			<< "\nL3TLB sets : " << m_tlb_hier->m_caches[last_level_small_tlb_idx]->get_num_sets();
+
     uint64_t l3tlbaddr = l3_tlb_base_address + (set_index * 16 * 4);
     
     if(insert)
@@ -333,8 +337,13 @@ void Core::tick(std::string config, uint64_t initiator_penalty, uint64_t victim_
 					tlb_shootdown_is_large = req.m_is_large;
 
 					if (config == "IDEAL" || (tlb_shootdown_addr != actual_shootdown_identifier
-							&& !req.is_migration_shootdown))
+							&& (!req.is_migration_shootdown)))
 					{
+						if (m_tp_ptr->global_ts > (m_tp_ptr->skip_instructions + m_tp_ptr->warmup_period))
+						{
+							std::cout << "Incrementing page invalidations for : " << req;
+							page_invalidations++;
+						}
 						tlb_shootdown_penalty = 0;
 						stall = true;
 					}
@@ -362,26 +371,18 @@ void Core::tick(std::string config, uint64_t initiator_penalty, uint64_t victim_
 							num_stall_cycles_per_shootdown = 0;
 						}
 
-	            				if (m_tp_ptr->global_ts > (m_tp_ptr->skip_instructions + m_tp_ptr->warmup_period))
-	            				{
-	            					std::cout << "[GUEST/HOST] " << req;
+						if (m_tp_ptr->global_ts > (m_tp_ptr->skip_instructions + m_tp_ptr->warmup_period))
+						{
+							std::cout << "[GUEST/HOST] " << req;
 
-	            					if (req.is_guest_shootdown)
-	            						num_guest_shootdowns++;
-	            					else
-	            						num_host_shootdowns++;
+							if (req.is_guest_shootdown)
+								num_guest_shootdowns++;
+							else
+								num_host_shootdowns++;
 
-	            					std::cout << "num_host_shootdowns " << num_host_shootdowns <<std::endl;
-
-	            				}
-
-
-					}
-
-
-					if (m_tp_ptr->global_ts > (m_tp_ptr->skip_instructions + m_tp_ptr->warmup_period))
-					{
-						num_shootdown++;
+							std::cout << "num_host_shootdowns " << num_host_shootdowns <<std::endl;
+							num_shootdown++;
+						}
 					}
 
 					std::cout << "Stalling core " << m_core_id << " at cycle = " << m_clk << " until translation coherence is complete\n";
@@ -405,11 +406,6 @@ void Core::tick(std::string config, uint64_t initiator_penalty, uint64_t victim_
 						tlb_shootdown_is_large = req.m_is_large;
 						num_stall_cycles_per_shootdown = 0;
 
-						if (m_tp_ptr->global_ts > (m_tp_ptr->skip_instructions + m_tp_ptr->warmup_period))
-						{
-							num_shootdown++;
-						}
-
 		            	if (m_tp_ptr->global_ts > (m_tp_ptr->skip_instructions + m_tp_ptr->warmup_period))
 		            	{
 		            		std::cout << "[GUEST/HOST] " << req;
@@ -420,7 +416,7 @@ void Core::tick(std::string config, uint64_t initiator_penalty, uint64_t victim_
 		            			num_host_shootdowns++;
 
 		            		std::cout << "num_host_shootdowns " << num_host_shootdowns <<std::endl;
-
+		            		num_shootdown++;
 		            	}
 
 						std::cout << "Stalling core " << m_core_id << " at cycle = " << m_clk << " until translation coherence is complete\n";

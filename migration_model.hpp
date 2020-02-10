@@ -18,7 +18,7 @@ class migration_model
 {
 public:
 	migration_model(uint64_t num_dram_pages, uint64_t num_disk_nvm_pages, std::string migration_policy,
-			uint32_t migration_threshold, uint32_t prefetch_count = 2)
+			uint32_t migration_threshold)
 	:num_dram_pages_(num_dram_pages),
 	 num_disk_nvm_pages_(num_disk_nvm_pages),
 	 migration_policy_(migration_policy),
@@ -30,15 +30,6 @@ public:
 	    dram_page_references = new bool[num_dram_pages];
 	    dram_page_location = new int64_t[num_disk_nvm_pages];
 	    num_empty_dram_pages_ = num_dram_pages;
-
-	    if (migration_policy == "prefetch")
-	    {
-	    	prefetch_count_ = prefetch_count;
-	    }
-	    else
-	    {
-	    	prefetch_count_ = 1; //Only get 1 sector
-	    }
 
 	    if (migration_policy == "mig_dmn")
 	    {
@@ -87,7 +78,7 @@ public:
 
         page_counts[migrated_pages[ref_itr]] = 0;
         dram_page_location[migrated_pages[ref_itr]] = -1;
-        std::cout << "Page : " << migrated_pages[ref_itr] << "returned to NVM/Disk" << std::endl;
+        std::cout << "Page : " << migrated_pages[ref_itr] << " returned to NVM/Disk" << std::endl;
         ref_ptr_ = (ref_itr + 1)%num_dram_pages_;
 
         num_migrations++;
@@ -108,7 +99,7 @@ public:
         if ((dram_page_location[migrated_pages[ref_itr]] != -1)) {
             page_counts[migrated_pages[ref_itr]] = 0;
             dram_page_location[migrated_pages[ref_itr]] = -1;
-            std::cout << "Page : " << migrated_pages[ref_itr] << "returned to NVM/Disk" << std::endl;
+            std::cout << "Page : " << migrated_pages[ref_itr] << " returned to NVM/Disk" << std::endl;
         }
         else
         {
@@ -120,10 +111,14 @@ public:
 
         ref_ptr_ = (ref_itr + 1)%num_dram_pages_;
         ref_itr = 0;
-        num_migrations++;
+
+//        if (tp_ptr->global_ts > (tp_ptr->skip_instructions + tp_ptr->warmup_period))
+//        {
+        	num_migrations++;
+//        }
 	}
 
-	bool processPage(Request * req)
+	bool processPage(Request * req, int &eviction_count)
 	{
 		int page_num = (req->m_addr/4096) & (0xffffff);
 		int use_core = req->m_core_id;
@@ -131,35 +126,73 @@ public:
 		bool is_page_migrated = false;
 	    page_counts[page_num]+=1;
 	    num_entries_in_trace++;
+	    eviction_count = 0;
 
-	    for (int i = 0; i < prefetch_count_;i++)
-	    {
-	    	if ((page_counts[page_num] >= migration_threshold_) && (dram_page_location[page_num]) < 0) {
-				evict_page(page_num);
-				is_page_migrated = true;
+		if ((page_counts[page_num] >= migration_threshold_) && (dram_page_location[page_num]) < 0) {
 
-				std::cout << "num_empty_dram_pages_ " << num_empty_dram_pages_ << std::endl;
+			evict_page(page_num);
+			eviction_count++;
+			is_page_migrated = true;
 
-				if (num_empty_dram_pages_ < required_empty_pages_)
+			std::cout << "num_empty_dram_pages_ " << num_empty_dram_pages_ << std::endl;
+
+			if (num_empty_dram_pages_ < required_empty_pages_)
+			{
+				evict_page_premptive();
+				eviction_count++;
+
+				if (required_empty_pages_ == 0)
 				{
-					evict_page_premptive();
-
-					if (required_empty_pages_ == 0)
-					{
-						assert(false);
-					}
-
-					assert(num_empty_dram_pages_ >= required_empty_pages_);
+					assert(false);
 				}
-	    	}
 
-	    	if ((++page_num) > num_disk_nvm_pages_)
-	    		i = prefetch_count_;
-	    }
+				assert(num_empty_dram_pages_ >= required_empty_pages_);
+			}
+		}
 
-	    if (dram_page_location[page_num] >= 0) {
-	        dram_page_references[dram_page_location[page_num]] = true;
-	    }
+		if (dram_page_location[page_num] >= 0) {
+			dram_page_references[dram_page_location[page_num]] = true;
+		}
+
+		if (is_page_migrated && (migration_policy_ == "prefetch"))
+		{
+			++page_num;
+			bool page_already_in_dram = false;
+
+			for (int j = 0 ; j < num_dram_pages_; j++)
+			{
+				if (migrated_pages[j] == page_num)
+				{
+					page_already_in_dram = true;
+					break;
+				}
+			}
+
+			if (!page_already_in_dram)
+			{
+				evict_page(page_num);
+				eviction_count++;
+				is_page_migrated = true;
+			}
+			else
+			{
+				prefetch_already_in_dram++;
+			}
+		}
+
+		if (is_page_migrated)
+		{
+			std::cout << "[MIGRATION] eviction_count returned : " << eviction_count << std::endl;
+		}
+
+		if (eviction_count == 1)
+		{
+			eviction_count_1++;
+		}
+		if (eviction_count == 2)
+		{
+			eviction_count_2++;
+		}
 
 	    return is_page_migrated;
 	}
@@ -169,6 +202,11 @@ public:
 		int page_num = (req->m_addr/4096) & (0xffffff);
 
 		return (dram_page_location[page_num] == -1);
+	}
+
+	void add_traceprocessor(TraceProcessor *tp)
+	{
+		tp_ptr = tp;
 	}
 
 
@@ -185,11 +223,14 @@ private:
 	int64_t num_entries_in_trace = 0;
 	uint64_t migration_threshold_ = 0;
 	int64_t ref_ptr_ = 0;
-	int prefetch_count_ = 0; //Must be an even number - will fetch half from front and other half from back
 	int required_empty_pages_ = 0;
+	TraceProcessor* tp_ptr = nullptr;
 
 public:
 	uint64_t num_migrations = 0;
+	uint64_t eviction_count_1 = 0;
+	uint64_t eviction_count_2 = 0;
+	uint64_t prefetch_already_in_dram = 0;
 	std::string migration_policy_ = "";
 
 };

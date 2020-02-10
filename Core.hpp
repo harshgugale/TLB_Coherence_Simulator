@@ -84,9 +84,11 @@ public:
     uint64_t num_stall_cycles_per_shootdown = 0;
     uint64_t num_shootdown = 0;
     uint64_t outstanding_shootdowns = 0;
-    uint64_t num_guest_shootdowns = 0, num_host_shootdowns = 0;
+    uint64_t num_guest_shootdowns = 0, num_host_shootdowns = 0, page_invalidations = 0;
     TraceProcessor * m_tp_ptr = nullptr;
     bool is_stall_guest_shootdown = true;
+    uint64_t num_tr_invalidations = 0;
+    uint64_t num_false_invalidations = 0;
 
     //Actual performance counters
 
