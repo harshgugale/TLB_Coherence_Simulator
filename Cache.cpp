@@ -52,7 +52,17 @@ bool Cache::is_found(const std::vector<CacheLine>& set,
 bool Cache::is_partially_found(const std::vector<CacheLine>& set,
 		const uint64_t tag, bool is_translation, uint64_t tid, unsigned int &hit_pos, uint64_t partial_addr, bool is_large)
 {
-	uint64_t partial_tag = partial_addr >> m_num_index_bits;
+	uint64_t partial_tag = 0;
+	if (is_large)
+	{
+		partial_tag = ((partial_tag - m_core->m_l3_small_tlb_size) >> m_num_index_bits);
+	}
+	else
+	{
+		partial_tag = (partial_addr >> m_num_index_bits);
+	}
+
+
 	uint64_t mask_for_partial_compare;
 
 	if(is_large)
