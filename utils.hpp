@@ -72,15 +72,15 @@ typedef struct {
     bool     large;
     uint64_t ts;
     uint64_t va;
-    int      write;
+    bool      write;
 } trace_tlb_entry_t;
 
 typedef struct {
     bool     large;
     uint64_t ts;
     uint64_t va;
-    int      write;
-    uint64_t tid;
+    bool      write;
+    uint32_t tid;
 } trace_tlb_tid_entry_t;
 
 //typedef struct {

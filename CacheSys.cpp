@@ -242,16 +242,10 @@ void CacheSys::tlb_invalidate(uint64_t addr, uint64_t tid, bool is_large)
 
     if (!partial_lookup_success)
     {
-    	if (m_tp_ptr->global_ts > (m_tp_ptr->skip_instructions + m_tp_ptr->warmup_period))
-    	{
-    		m_core->num_false_invalidations++;
-    	}
+    	(*m_core->num_false_invalidations)++;
     }
 
-    if (m_tp_ptr->global_ts > (m_tp_ptr->skip_instructions + m_tp_ptr->warmup_period))
-    {
-    	m_core->num_tr_invalidations++;
-    }
+    (*m_core->num_tr_invalidations)++;
 
     for(int i = start; i < m_caches.size(); i += 2)
     {

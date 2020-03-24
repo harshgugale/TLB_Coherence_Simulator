@@ -43,7 +43,7 @@ std::shared_ptr<migration_model> page_migration_model;
 
 uint64_t initiator_penalty = 0, victim_penalty = 0;
 
-uint64_t num_dram_pages = 0, num_nvm_disk_pages = 0, migration_threshold = 0, tick_with_empty_tracevec = 0;
+uint64_t num_dram_pages = 0, num_nvm_disk_pages = 0, migration_threshold = 0;
 std::string page_migration_policy = "none";
 
 std::unordered_map <Request *, int> request_queue;
@@ -71,13 +71,15 @@ int main(int argc, char * argv[])
 	tp.env = argv[2];
 	tp.config = argv[3];
 
-	assert(tp.benchname != "" || tp.config != "" || tp.env != "");
+	assert(tp.benchname != "" || tp.config != "" || tp.env != "" || tp.skip_instructions != 0);
+	assert(tp.dram_size != 0 || tp.nvm_disk_size != 0 || tp.migration_threshold != 0);
 
 	//Set up simulation parameters by Traceprocessor
 	num_dram_pages = tp.dram_size;
 	num_nvm_disk_pages = tp.nvm_disk_size;
 	migration_threshold = tp.migration_threshold;
 	page_migration_policy = tp.mig_policy;
+	tp.global_ts = tp.skip_instructions;
 
 	uint64_t max_ts_to_simulate = tp.warmup_period + tp.skip_instructions + tp.instrument_instructions;
 
@@ -104,11 +106,14 @@ int main(int argc, char * argv[])
 		std::cout << "[WARNING] Page Migration model incorrect" <<std::endl ;
 	}
 
-	std::cout << "\n\n*******Setup Values*********\n\n" << "Benchname : " << tp.benchname
+	std::cout << "\n\n*******Setup Values*********\n\n"
+			<< "Benchname : " << tp.benchname
 			<< "\nSimulator Config " << tp.config
 			<< "\nInitiator penalty " << initiator_penalty
 			<< "\nVictim penalty : " << victim_penalty
+			<< "\nSkipped instructions : " << tp.skip_instructions
 			<< "\nMax TS to Simulate : " << max_ts_to_simulate
+			<< "\nSkip Instructions : " << tp.skip_instructions
 			<< "\nNum DRAM pages : " << num_dram_pages
 			<< "\nNum NVM/Disk Pages : " << num_nvm_disk_pages
 			<< "\nMigration threshold : " << migration_threshold
@@ -195,6 +200,8 @@ int main(int argc, char * argv[])
 
 		cores[i]->add_traceprocessor(&tp);
 
+		std::cout << "get TP PTR " << cores[i]->instructions_retired->get_tp_ptr() << "\n";
+
 		ll_interface_complete = cores[i]->interfaceHier(ll_interface_complete);
 	}
 
@@ -205,6 +212,8 @@ int main(int argc, char * argv[])
 
 	page_migration_model = std::make_shared <migration_model>(num_dram_pages, num_nvm_disk_pages,
 			page_migration_policy, migration_threshold);
+
+	page_migration_model->add_traceprocessor(&tp);
 
 	llc->add_migration_model(page_migration_model);
 	l3_tlb_small->add_migration_model(page_migration_model);
@@ -285,6 +294,8 @@ int main(int argc, char * argv[])
 			{
 				r = tp.generateRequest();
 
+				//std::cout << *r;
+
 				assert((r != nullptr) && r->m_core_id >= 0 && r->m_core_id < NUM_CORES);
 
 				used_up_req = false;
@@ -312,20 +323,12 @@ int main(int argc, char * argv[])
 
 		for(int i = 0; i < NUM_CORES; i++)
 		{
-			if (cores[i]->traceVec.size() == 0)
-			{
-				if (tp.global_ts > (tp.skip_instructions + tp.warmup_period))
-				{
-					tick_with_empty_tracevec++;
-				}
-			}
-
 			cores[i]->tick(tp.config, initiator_penalty, victim_penalty);
 
 			done = (done & cores[i]->is_done()) && (cores[i]->traceVec.size() == 0)
 					&& (tp.global_ts >= max_ts_to_simulate);
 
-			if((cores[i]->m_clk + cores[i]->num_stall_cycles) > max_ts_to_simulate * 10)
+			if((cores[i]->m_clk + cores[i]->num_stall_cycles->get_val()) > max_ts_to_simulate * 10)
 			{
 
 				for(int j = 0; j < NUM_CORES; j++)
@@ -461,115 +464,102 @@ void print_results(std::ofstream &outFile, TraceProcessor &tp, std::string bench
 		//
 		outFile << "--------Core " << i << " -------------" << "\n";
 
-		outFile << "Cycles = " << cores[i]->num_cycles << "\n";
-		outFile << "Instructions = " << (cores[i]->instructions_retired) << "\n";
-		outFile << "Stall cycles = " << cores[i]->num_stall_cycles << "\n";
-		outFile << "Num shootdowns = " << cores[i]->num_shootdown << "\n";
-		outFile << "False translation invalidations = " << cores[i]->num_false_invalidations << "\n";
-		outFile << "Translation invalidations = " << cores[i]->num_tr_invalidations << "\n";
-		total_num_cycles += cores[i]->num_cycles;
-		total_stall_cycles += cores[i]->num_stall_cycles;
-		total_shootdowns += cores[i]->num_shootdown;
-		total_instructions += cores[i]->instructions_retired;
-		total_guest_shootdowns+=cores[i]->num_guest_shootdowns;
-		total_host_shootdowns+=cores[i]->num_host_shootdowns;
-		total_page_invalidations+=cores[i]->page_invalidations;
-		total_tr_invalidations+=cores[i]->num_tr_invalidations;
-		total_false_invalidations+=cores[i]->num_false_invalidations;
+		//outFile << "Cycles = " << cores[i]->num_cycles << "\n";
+		//outFile << "Instructions = " << cores[i]->instructions_retired << "\n";
 
-		outFile << "[L1 D$] data hits = " << l1_data_caches[i]->num_data_hits << "\n";
-		outFile << "[L1 D$] translation hits = " << l1_data_caches[i]->num_tr_hits << "\n";
-		outFile << "[L1 D$] data misses = " << l1_data_caches[i]->num_data_misses << "\n";
-		outFile << "[L1 D$] translation misses = " << l1_data_caches[i]->num_tr_misses << "\n";
-		outFile << "[L1 D$] MSHR data hits = " << l1_data_caches[i]->num_mshr_data_hits << "\n";
-		outFile << "[L1 D$] MSHR translation hits = " << l1_data_caches[i]->num_mshr_tr_hits << "\n";
-		outFile << "[L1 D$] data accesses = " << l1_data_caches[i]->num_data_accesses << "\n";
-		outFile << "[L1 D$] translation accesses = " << l1_data_caches[i]->num_tr_accesses << "\n";
-		if(cores[i]->m_num_retired)
+		for (auto const& c: cores[i]->module_counters)
 		{
-			double l1d_mpki = (double) (l1_data_caches[i]->num_data_misses * 1000.0)/(cores[i]->m_num_retired);
+			outFile << (*c);
+		}
+
+		total_num_cycles += cores[i]->num_cycles->get_val();
+		total_stall_cycles += cores[i]->num_stall_cycles->get_val();
+		total_shootdowns += cores[i]->num_shootdown->get_val();
+		total_instructions += cores[i]->instructions_retired->get_val();
+		total_guest_shootdowns+=cores[i]->num_guest_shootdowns->get_val();
+		total_host_shootdowns+=cores[i]->num_host_shootdowns->get_val();
+		total_page_invalidations+=cores[i]->page_invalidations->get_val();
+		total_tr_invalidations+=cores[i]->num_tr_invalidations->get_val();
+		total_false_invalidations+=cores[i]->num_false_invalidations->get_val();
+
+		for (auto const& c: l1_data_caches[i]->module_counters)
+		{
+			outFile << "[L1 D$] " << (*c);
+		}
+
+		if(cores[i]->instructions_retired->get_val())
+		{
+			double l1d_mpki = (double) (l1_data_caches[i]->num_data_misses->get_val() * 1000.0)/(cores[i]->instructions_retired->get_val());
 			outFile << "[L1 D$] MPKI = " << l1d_mpki << "\n";
 			if(!tp.is_multicore) l1d_agg_mpki += l1d_mpki;
 		}
 
-		outFile << "[L2 D$] data hits = " << l2_data_caches[i]->num_data_hits << "\n";
-		outFile << "[L2 D$] translation hits = " << l2_data_caches[i]->num_tr_hits << "\n";
-		outFile << "[L2 D$] data misses = " << l2_data_caches[i]->num_data_misses << "\n";
-		outFile << "[L2 D$] translation misses = " << l2_data_caches[i]->num_tr_misses << "\n";
-		outFile << "[L2 D$] MSHR data hits = " << l2_data_caches[i]->num_mshr_data_hits << "\n";
-		outFile << "[L2 D$] MSHR translation hits = " << l2_data_caches[i]->num_mshr_tr_hits << "\n";
-		outFile << "[L2 D$] data accesses = " << l2_data_caches[i]->num_data_accesses << "\n";
-		outFile << "[L2 D$] translation accesses = " << l2_data_caches[i]->num_tr_accesses << "\n";
-		if(cores[i]->m_num_retired)
+		for (auto const& c: l2_data_caches[i]->module_counters)
 		{
-			double l2d_mpki = (double) ((l2_data_caches[i]->num_data_misses  + l2_data_caches[i]->num_tr_misses)* 1000.0)/(cores[i]->m_num_retired);
+			outFile << "[L2 D$] " << (*c);
+		}
+
+		if(cores[i]->instructions_retired->get_val())
+		{
+			double l2d_mpki = (double) ((l2_data_caches[i]->num_data_misses->get_val()  +
+					l2_data_caches[i]->num_tr_misses->get_val())* 1000.0)/(cores[i]->instructions_retired->get_val());
 			outFile << "[L2 D$] MPKI = " << l2d_mpki << "\n";
 			if(!tp.is_multicore) l2d_agg_mpki += l2d_mpki;
 		}
 
-		outFile << "[L1 SMALL TLB] data hits = " << l1_tlb[2 * i]->num_data_hits << "\n";
-		outFile << "[L1 SMALL TLB] translation hits = " << l1_tlb[2 * i]->num_tr_hits << "\n";
-		outFile << "[L1 SMALL TLB] data misses = " << l1_tlb[2 * i]->num_data_misses << "\n";
-		outFile << "[L1 SMALL TLB] translation misses = " << l1_tlb[2 * i]->num_tr_misses << "\n";
-		outFile << "[L1 SMALL TLB] MSHR data hits = " << l1_tlb[2 * i]->num_mshr_data_hits << "\n";
-		outFile << "[L1 SMALL TLB] MSHR translation hits = " << l1_tlb[2 * i]->num_mshr_tr_hits << "\n";
-		outFile << "[L1 SMALL TLB] data accesses = " << l1_tlb[2 * i]->num_data_accesses << "\n";
-		outFile << "[L1 SMALL TLB] translation accesses = " << l1_tlb[2 * i]->num_tr_accesses << "\n";
-
-		if(cores[i]->m_num_retired)
+		for (auto const& c: l1_tlb[2 * i]->module_counters)
 		{
-			double l1ts_mpki = (double) ((l1_tlb[2 * i]->num_data_misses  + l1_tlb[2 * i]->num_tr_misses)* 1000.0)/(cores[i]->m_num_retired);
+			outFile << "[L1 SMALL TLB] " << (*c);
+		}
+
+		if(cores[i]->instructions_retired->get_val())
+		{
+			double l1ts_mpki = (double) ((l1_tlb[2 * i]->num_data_misses->get_val()  +
+					l1_tlb[2 * i]->num_tr_misses->get_val())* 1000.0)/(cores[i]->instructions_retired->get_val());
 			outFile << "[L1 SMALL TLB] MPKI = " << l1ts_mpki << "\n";
 			if(!tp.is_multicore) l1ts_agg_mpki += l1ts_mpki;
 		}
 
-		total_num_data_coh_msgs += l1_tlb[2 * i]->num_data_coh_msgs;
-		total_num_tr_coh_msgs += l1_tlb[2 * i]->num_tr_coh_msgs;
+		total_num_data_coh_msgs += l1_tlb[2 * i]->num_data_coh_msgs->get_val();
+		total_num_tr_coh_msgs += l1_tlb[2 * i]->num_tr_coh_msgs->get_val();
 
-		outFile << "[L1 LARGE TLB] data hits = " << l1_tlb[2 * i + 1]->num_data_hits << "\n";
-		outFile << "[L1 LARGE TLB] translation hits = " << l1_tlb[2 * i + 1]->num_tr_hits << "\n";
-		outFile << "[L1 LARGE TLB] data misses = " << l1_tlb[2 * i + 1]->num_data_misses << "\n";
-		outFile << "[L1 LARGE TLB] translation misses = " << l1_tlb[2 * i + 1]->num_tr_misses << "\n";
-		outFile << "[L1 LARGE TLB] MSHR data hits = " << l1_tlb[2 * i + 1]->num_mshr_data_hits << "\n";
-		outFile << "[L1 LARGE TLB] MSHR translation hits = " << l1_tlb[2 * i + 1]->num_mshr_tr_hits << "\n";
-		outFile << "[L1 LARGE TLB] data accesses = " << l1_tlb[2 * i + 1]->num_data_accesses << "\n";
-		outFile << "[L1 LARGE TLB] translation accesses = " << l1_tlb[2 * i + 1]->num_tr_accesses << "\n";
-		if(cores[i]->m_num_retired)
+		for (auto const& c: l1_tlb[2 * i + 1]->module_counters)
 		{
-			double l1tl_mpki = (double) ((l1_tlb[2 * i + 1]->num_data_misses  + l1_tlb[2 * i + 1]->num_tr_misses)* 1000.0)/(cores[i]->m_num_retired);
+			outFile << "[L1 LARGE TLB] " << (*c);
+		}
+
+		if(cores[i]->instructions_retired->get_val())
+		{
+			double l1tl_mpki = (double) ((l1_tlb[2 * i + 1]->num_data_misses->get_val()
+					+ l1_tlb[2 * i + 1]->num_tr_misses->get_val())* 1000.0)/(cores[i]->instructions_retired->get_val());
 			outFile << "[L1 LARGE TLB] MPKI = " << l1tl_mpki << "\n";
 			if(!tp.is_multicore) l1tl_agg_mpki += l1tl_mpki;
 		}
 
-		outFile << "[L2 SMALL TLB] data hits = " << l2_tlb[2 * i]->num_data_hits << "\n";
-		outFile << "[L2 SMALL TLB] translation hits = " << l2_tlb[2 * i]->num_tr_hits << "\n";
-		outFile << "[L2 SMALL TLB] data misses = " << l2_tlb[2 * i]->num_data_misses << "\n";
-		outFile << "[L2 SMALL TLB] translation misses = " << l2_tlb[2 * i]->num_tr_misses << "\n";
-		outFile << "[L2 SMALL TLB] MSHR data hits = " << l2_tlb[2 * i]->num_mshr_data_hits << "\n";
-		outFile << "[L2 SMALL TLB] MSHR translation hits = " << l2_tlb[2 * i]->num_mshr_tr_hits << "\n";
-		outFile << "[L2 SMALL TLB] data accesses = " << l2_tlb[2 * i]->num_data_accesses << "\n";
-		outFile << "[L2 SMALL TLB] translation accesses = " << l2_tlb[2 * i]->num_tr_accesses << "\n";
-
-		l2_tlb_misses+=(l2_tlb[2 * i]->num_tr_misses + l1_tlb[2 * i + 1]->num_data_misses);
-
-		if(cores[i]->m_num_retired)
+		for (auto const& c: l2_tlb[2 * i]->module_counters)
 		{
-			double l2ts_mpki = (double) ((l2_tlb[2 * i]->num_data_misses  + l2_tlb[2 * i]->num_tr_misses)* 1000.0)/(cores[i]->m_num_retired);
+			outFile << "[L2 SMALL TLB] " << (*c);
+		}
+
+		l2_tlb_misses+=(l2_tlb[2 * i]->num_tr_misses->get_val() + l2_tlb[2 * i + 1]->num_data_misses->get_val());
+
+		if(cores[i]->instructions_retired->get_val())
+		{
+			double l2ts_mpki = (double) ((l2_tlb[2 * i]->num_data_misses->get_val()  +
+					l2_tlb[2 * i]->num_tr_misses->get_val())* 1000.0)/(cores[i]->instructions_retired->get_val());
 			outFile << "[L2 SMALL TLB] MPKI = " << l2ts_mpki << "\n";
 			if(!tp.is_multicore) l2ts_agg_mpki += l2ts_mpki;
 		}
 
-		outFile << "[L2 LARGE TLB] data hits = " << l2_tlb[2 * i + 1]->num_data_hits << "\n";
-		outFile << "[L2 LARGE TLB] translation hits = " << l2_tlb[2 * i + 1]->num_tr_hits << "\n";
-		outFile << "[L2 LARGE TLB] data misses = " << l2_tlb[2 * i + 1]->num_data_misses << "\n";
-		outFile << "[L2 LARGE TLB] translation misses = " << l2_tlb[2 * i + 1]->num_tr_misses << "\n";
-		outFile << "[L2 LARGE TLB] MSHR data hits = " << l2_tlb[2 * i + 1]->num_mshr_data_hits << "\n";
-		outFile << "[L2 LARGE TLB] MSHR translation hits = " << l2_tlb[2 * i + 1]->num_mshr_tr_hits << "\n";
-		outFile << "[L2 LARGE TLB] data accesses = " << l2_tlb[2 * i + 1]->num_data_accesses << "\n";
-		outFile << "[L2 LARGE TLB] translation accesses = " << l2_tlb[2 * i + 1]->num_tr_accesses << "\n";
-		if(cores[i]->m_num_retired)
+		for (auto const& c: l2_tlb[2 * i + 1]->module_counters)
 		{
-			double l2tl_mpki = (double) ((l2_tlb[2 * i + 1]->num_data_misses  + l2_tlb[2 * i + 1]->num_tr_misses)* 1000.0)/(cores[i]->m_num_retired);
+			outFile << "[L2 LARGE TLB] " << (*c);
+		}
+
+		if(cores[i]->instructions_retired->get_val())
+		{
+			double l2tl_mpki = (double) ((l2_tlb[2 * i + 1]->num_data_misses->get_val()  +
+					l2_tlb[2 * i + 1]->num_tr_misses->get_val())* 1000.0)/(cores[i]->instructions_retired->get_val());
 			outFile << "[L2 LARGE TLB] MPKI = " << l2tl_mpki << "\n";
 			if(!tp.is_multicore) l2tl_agg_mpki += l2tl_mpki;
 		}
@@ -580,7 +570,6 @@ void print_results(std::ofstream &outFile, TraceProcessor &tp, std::string bench
 	if(!tp.is_multicore)
 	{
 		outFile << "Cycles = " << total_num_cycles << "\n";
-		outFile << "Total ticks with tracevec empty = " << tick_with_empty_tracevec << "\n";
 		outFile << "Instructions = " << (total_instructions) << "\n";
 		if(total_num_cycles > 0)
 		{
@@ -588,12 +577,14 @@ void print_results(std::ofstream &outFile, TraceProcessor &tp, std::string bench
 		}
 		outFile << "Stall cycles = " << total_stall_cycles << "\n";
 		outFile << "Total shootdowns = " << total_shootdowns << "\n";
-		outFile << "Num migration shootdowns = " << page_migration_model->num_migrations << "\n";
 		outFile << "Total additions to the Migration Request Queue = " << tp.addition_to_migration_queue << "\n";
 		outFile << "Total Pops of the Migration Request Queue = " << tp.popped_migration_queue << "\n";
-		outFile << "Total single evictions = " << page_migration_model->eviction_count_1 << "\n";
-		outFile << "Total double evictions = " << page_migration_model->eviction_count_2 << "\n";
-		outFile << "Prefetch already in DRAM = " << page_migration_model->prefetch_already_in_dram << "\n";
+
+		for (auto const& c: page_migration_model->module_counters)
+		{
+			outFile << "[MIGRATION MODEL] " << (*c);
+		}
+
 		outFile << "Num Guest shootdowns = " << total_guest_shootdowns << "\n";
 		outFile << "Num Host shootdowns = " << total_host_shootdowns << "\n";
 		outFile << "Total page invalidations (Excludes guest/host shootdowns) = " << total_page_invalidations << "\n";
@@ -611,48 +602,36 @@ void print_results(std::ofstream &outFile, TraceProcessor &tp, std::string bench
 	outFile << "----------------------------------------------------------------------\n";
 	outFile << "[AGGREGATE] Number of data coherence messages = " << total_num_data_coh_msgs << "\n";
 	outFile << "[AGGREGATE] Number of translation coherence messages = " << total_num_tr_coh_msgs << "\n";
-	outFile << "[L3] data hits = " << llc->num_data_hits << "\n";
-	outFile << "[L3] translation hits = " << llc->num_tr_hits << "\n";
-	outFile << "[L3] data misses = " << llc->num_data_misses << "\n";
-	outFile << "[L3] translation misses = " << llc->num_tr_misses << "\n";
-	outFile << "[L3] MSHR data hits = " << llc->num_mshr_data_hits << "\n";
-	outFile << "[L3] MSHR translation hits = " << llc->num_mshr_tr_hits << "\n";
-	outFile << "[L3] data accesses = " << llc->num_data_accesses << "\n";
-	outFile << "[L3] translation accesses = " << llc->num_tr_accesses << "\n";
-	outFile << "[L3] Memory Accesses = " << llc->mem_accesses << "\n";
-	if(total_instructions)
+
+	for (auto const& c: llc->module_counters)
 	{
-		outFile << "[L3] MPKI = " << (double) ((llc->num_data_misses  + llc->num_tr_misses)* 1000.0)/(total_instructions) << "\n";
+		outFile << "[LLC] " << (*c);
 	}
 
-	outFile << "[L3 SMALL TLB] data hits = " << l3_tlb_small->num_data_hits << "\n";
-	outFile << "[L3 SMALL TLB] translation hits = " << l3_tlb_small->num_tr_hits << "\n";
-	outFile << "[L3 SMALL TLB] data misses = " << l3_tlb_small->num_data_misses << "\n";
-	outFile << "[L3 SMALL TLB] translation misses = " << l3_tlb_small->num_tr_misses << "\n";
-	outFile << "[L3 SMALL TLB] MSHR data hits = " << l3_tlb_small->num_mshr_data_hits << "\n";
-	outFile << "[L3 SMALL TLB] MSHR translation hits = " << l3_tlb_small->num_mshr_tr_hits << "\n";
-	outFile << "[L3 SMALL TLB] data accesses = " << l3_tlb_small->num_data_accesses << "\n";
-	outFile << "[L3 SMALL TLB] translation accesses = " << l3_tlb_small->num_tr_accesses << "\n";
-	outFile << "[L3 SMALL TLB] Memory Accesses = " << l3_tlb_small->mem_accesses << "\n";
-
 	if(total_instructions)
 	{
-		outFile << "[L3 SMALL TLB] MPKI = " << (double) (l3_tlb_small->num_tr_misses * 1000.0)/(total_instructions) << "\n";
+		outFile << "[LLC] MPKI = " << (double) ((llc->num_data_misses->get_val()  +
+				llc->num_tr_misses->get_val())* 1000.0)/(total_instructions) << "\n";
 	}
 
-	outFile << "[L3 LARGE TLB] data hits = " << l3_tlb_large->num_data_hits << "\n";
-	outFile << "[L3 LARGE TLB] translation hits = " << l3_tlb_large->num_tr_hits << "\n";
-	outFile << "[L3 LARGE TLB] data misses = " << l3_tlb_large->num_data_misses << "\n";
-	outFile << "[L3 LARGE TLB] translation misses = " << l3_tlb_large->num_tr_misses << "\n";
-	outFile << "[L3 LARGE TLB] MSHR data hits = " << l3_tlb_large->num_mshr_data_hits << "\n";
-	outFile << "[L3 LARGE TLB] MSHR translation hits = " << l3_tlb_large->num_mshr_tr_hits << "\n";
-	outFile << "[L3 LARGE TLB] data accesses = " << l3_tlb_large->num_data_accesses << "\n";
-	outFile << "[L3 LARGE TLB] translation accesses = " << l3_tlb_large->num_tr_accesses << "\n";
-	outFile << "[L3 LARGE TLB] Memory Accesses = " << l3_tlb_large->mem_accesses << "\n";
+	for (auto const& c: l3_tlb_small->module_counters)
+	{
+		outFile << "[L3 SMALL TLB] " << (*c);
+	}
 
 	if(total_instructions)
 	{
-		outFile << "[L3 LARGE TLB] MPKI = " << (double) (l3_tlb_large->num_tr_misses * 1000.0)/(total_instructions) << "\n";
+		outFile << "[L3 SMALL TLB] MPKI = " << (double) (l3_tlb_small->num_tr_misses->get_val() * 1000.0)/(total_instructions) << "\n";
+	}
+
+	for (auto const& c: l3_tlb_large->module_counters)
+	{
+		outFile << "[L3 LARGE TLB] " << (*c);
+	}
+
+	if(total_instructions)
+	{
+		outFile << "[L3 LARGE TLB] MPKI = " << (double) (l3_tlb_large->num_tr_misses->get_val() * 1000.0)/(total_instructions) << "\n";
 	}
 
 	outFile << "----------------------------------------------------------------------\n";

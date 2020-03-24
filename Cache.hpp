@@ -94,17 +94,23 @@ private:
     std::shared_ptr <migration_model> page_migration_model_;
 
 public:
-    uint64_t num_data_hits = 0;
-    uint64_t num_tr_hits = 0;
-    uint64_t num_data_misses = 0;
-    uint64_t num_tr_misses = 0;
-    uint64_t num_mshr_data_hits = 0;
-    uint64_t num_mshr_tr_hits = 0;
-    uint64_t num_data_accesses = 0;
-    uint64_t num_tr_accesses = 0;
-    uint64_t num_data_coh_msgs = 0;
-    uint64_t num_tr_coh_msgs = 0;
-    uint64_t mem_accesses = 0;
+    //Counters
+
+    std::shared_ptr <counter>  num_data_hits;
+    std::shared_ptr <counter>  num_tr_hits;
+    std::shared_ptr <counter>  num_data_misses;
+    std::shared_ptr <counter>  num_tr_misses;
+    std::shared_ptr <counter>  num_mshr_data_hits;
+    std::shared_ptr <counter>  num_mshr_tr_hits;
+    std::shared_ptr <counter>  num_data_accesses;
+    std::shared_ptr <counter>  num_tr_accesses;
+    std::shared_ptr <counter>  num_data_coh_msgs;
+    std::shared_ptr <counter>  num_tr_coh_msgs;
+    std::shared_ptr <counter>  mem_accesses;
+    std::shared_ptr <counter>  compulsary_tr_misses;
+    std::shared_ptr <counter>  conflict_tr_misses;
+
+    std::vector <counter *> module_counters;
 
     Cache(int num_sets,
     	int associativity,
@@ -158,6 +164,21 @@ public:
         m_is_large_page_tlb = is_large_page_tlb;
         
         m_is_callback_initialized = false;
+
+        num_data_hits = std::make_shared <counter>("Data hits",module_counters);
+        num_data_misses = std::make_shared <counter>("Data misses",module_counters);
+        num_data_accesses = std::make_shared <counter>("Data Accesses",module_counters);
+        num_mshr_data_hits = std::make_shared <counter>("MSHR Data hits",module_counters);
+        num_data_coh_msgs = std::make_shared <counter>("Data coherence messages",module_counters);
+        num_tr_hits = std::make_shared <counter>("Translation hits",module_counters);
+        num_tr_misses = std::make_shared <counter>("Translation misses",module_counters);
+        compulsary_tr_misses = std::make_shared <counter>("Compulsary translation misses",module_counters);
+        conflict_tr_misses = std::make_shared <counter>("Conflict translation misses",module_counters);
+        num_tr_accesses = std::make_shared <counter>("Translation accesses",module_counters);
+        num_mshr_tr_hits = std::make_shared <counter>("MSHR Translation hits",module_counters);
+        num_tr_coh_msgs = std::make_shared <counter>("Translation coherence messages",module_counters);
+        mem_accesses = std::make_shared <counter>("Total DRAM Accesses",module_counters);
+
     }
 
     void initialize_callback();

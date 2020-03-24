@@ -50,6 +50,11 @@ public:
 	    memset(dram_page_references,false,num_dram_pages*sizeof(bool));
 	    memset(page_counts,0,num_disk_nvm_pages*sizeof(int64_t));
 
+	    num_migrations = std::make_shared <counter>("Total Num of Migrations",module_counters);
+		eviction_count_1 = std::make_shared <counter>("Single Evictions",module_counters);
+		eviction_count_2 = std::make_shared <counter>("Double Evictions",module_counters);
+		prefetch_already_in_dram = std::make_shared <counter>("Prefetches already in DRAM",module_counters);;
+
 	    std::cout << "[MIGRATION_MODEL] Initialized hybrid mem system with " << num_dram_pages_
 	    		<< " DRAM pages, " << num_disk_nvm_pages_ << " NVM/DISK pages, "
 				<< migration_policy_ << " Migration policy, "
@@ -81,7 +86,7 @@ public:
         std::cout << "Page : " << migrated_pages[ref_itr] << " returned to NVM/Disk" << std::endl;
         ref_ptr_ = (ref_itr + 1)%num_dram_pages_;
 
-        num_migrations++;
+        (*num_migrations)++;
         num_empty_dram_pages_++;
 
 	}
@@ -114,7 +119,7 @@ public:
 
 //        if (tp_ptr->global_ts > (tp_ptr->skip_instructions + tp_ptr->warmup_period))
 //        {
-        	num_migrations++;
+        	(*num_migrations)++;
 //        }
 	}
 
@@ -176,7 +181,7 @@ public:
 			}
 			else
 			{
-				prefetch_already_in_dram++;
+				(*prefetch_already_in_dram)++;
 			}
 		}
 
@@ -187,11 +192,11 @@ public:
 
 		if (eviction_count == 1)
 		{
-			eviction_count_1++;
+			(*eviction_count_1)++;
 		}
 		if (eviction_count == 2)
 		{
-			eviction_count_2++;
+			(*eviction_count_2)++;
 		}
 
 	    return is_page_migrated;
@@ -207,6 +212,11 @@ public:
 	void add_traceprocessor(TraceProcessor *tp)
 	{
 		tp_ptr = tp;
+
+	    for(int i = 0; i < module_counters.size(); i++)
+	    {
+	    	module_counters[i]->set_tp(tp);
+	    }
 	}
 
 
@@ -227,10 +237,12 @@ private:
 	TraceProcessor* tp_ptr = nullptr;
 
 public:
-	uint64_t num_migrations = 0;
-	uint64_t eviction_count_1 = 0;
-	uint64_t eviction_count_2 = 0;
-	uint64_t prefetch_already_in_dram = 0;
+	std::vector <counter *> module_counters;
+
+	std::shared_ptr <counter> num_migrations;
+	std::shared_ptr <counter> eviction_count_1 = 0;
+	std::shared_ptr <counter> eviction_count_2 = 0;
+	std::shared_ptr <counter> prefetch_already_in_dram = 0;
 	std::string migration_policy_ = "";
 
 };

@@ -65,7 +65,8 @@ public:
 	m_cache_to_cache_latency(cache_to_cache_latency)
     {
         m_clk = 0;
-	m_nvm_latency = 800;
+        m_core_id = 0;
+        m_nvm_latency = 800;
     }
     
     void add_cache_to_hier(std::shared_ptr<Cache> c);

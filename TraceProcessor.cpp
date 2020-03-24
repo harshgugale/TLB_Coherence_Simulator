@@ -92,7 +92,10 @@ void TraceProcessor::processPair(std::string name, std::string val)
     {
     	mig_policy = val.c_str();
     }
-
+    if (name == "skip_instructions")
+    {
+    	skip_instructions = strtoull(val.c_str(),NULL, 10);
+    }
 
 }
 
@@ -219,7 +222,7 @@ int TraceProcessor::getNextEntry()
             {
                 if (!feof(trace_fp[i]))
                 {
-                    fread ((void*)&buf1[i], sizeof(trace_tlb_entry_t), 1, trace_fp[i] );
+                    fread ((void*)&buf1[i], sizeof(trace_tlb_entry_t), 1, trace_fp[i] ); //Changed datatypes of write and tid
                     used_up[i] = false;
                     entry_count[i]++;
                 }

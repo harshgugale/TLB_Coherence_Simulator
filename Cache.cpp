@@ -40,9 +40,12 @@ bool Cache::is_found(const std::vector<CacheLine>& set,
     auto it = std::find_if(set.begin(), set.end(), [tag, is_translation, tid, this](const CacheLine &l)
                            {
                                //Threads share address space, so no need to check for tid if the request type is not translation
-                               return (is_translation) ?  ((l.tag == tag) && (l.valid) &&
-                            		   (l.is_translation == is_translation) && (l.tid == tid)) :
-                            		   ((l.tag == tag) && (l.valid) && (l.is_translation == is_translation));
+//                               return (is_translation) ?  ((l.tag == tag) && (l.valid) &&
+//                            		   (l.is_translation == is_translation) && (l.tid == tid)) :
+//                            		   ((l.tag == tag) && (l.valid) && (l.is_translation == is_translation));
+
+    							return ((l.tag == tag) && (l.valid) && (l.is_translation == is_translation));
+
                            });
     
     hit_pos = static_cast<unsigned int>(it - set.begin());
@@ -53,6 +56,9 @@ bool Cache::is_partially_found(const std::vector<CacheLine>& set,
 		const uint64_t tag, bool is_translation, uint64_t tid, unsigned int &hit_pos, uint64_t partial_addr, bool is_large)
 {
 	uint64_t partial_tag = 0;
+
+	assert(is_translation);
+
 	if (is_large)
 	{
 		partial_tag = ((partial_tag - m_core->m_l3_small_tlb_size) >> m_num_index_bits);
@@ -66,7 +72,7 @@ bool Cache::is_partially_found(const std::vector<CacheLine>& set,
 	uint64_t mask_for_partial_compare;
 
 	if(is_large)
-		mask_for_partial_compare = ((1 << (12-m_num_index_bits)) - 1); //Considering that L3TLB is 16MB in size
+		mask_for_partial_compare = ((1 << (12-m_num_index_bits)) - 1);
 	else
 		mask_for_partial_compare = ((1 << (14-m_num_index_bits)) - 1);
 
@@ -80,9 +86,11 @@ bool Cache::is_partially_found(const std::vector<CacheLine>& set,
 										partial_match = true;
 									}
 								   //Threads share address space, so no need to check for tid if the request type is not translation
-								   return (is_translation) ?  (partial_match && (l.valid) &&
-										   (l.is_translation == is_translation) && (l.tid == tid)) :
-										   ((l.tag == tag) && (l.valid) && (l.is_translation == is_translation));
+//								   return (is_translation) ?  (partial_match && (l.valid) &&
+//										   (l.is_translation == is_translation) && (l.tid == tid)) :
+//										   ((l.tag == tag) && (l.valid) && (l.is_translation == is_translation));
+
+								   return (partial_match && (l.tag == tag) && (l.valid) && (l.is_translation == is_translation));
 							   });
 
 	hit_pos = static_cast<unsigned int>(it - set.begin());
@@ -153,11 +161,17 @@ void Cache::evict(uint64_t set_num, const CacheLine &line, int req_core_id)
         }
     }
     
+	if(line.valid)
+		(*conflict_tr_misses) += line.is_translation;
+	else
+		(*compulsary_tr_misses) += line.is_translation;
+
     //Send writeback if dirty
     //If not, due to inclusiveness, lower caches still have data
     //So do runtime check to ensure hit (and inclusiveness)
     if(line.valid)
     {
+
         std::shared_ptr<Cache> lower_cache = find_lower_cache_in_core(evict_addr, line.is_translation, line.is_large);
     
         Request req(evict_addr, line.is_translation ? TRANSLATION_WRITEBACK : DATA_WRITEBACK, line.tid, line.is_large, m_core_id);
@@ -179,66 +193,62 @@ void Cache::evict(uint64_t set_num, const CacheLine &line, int req_core_id)
             }
             else
             {
-            	if (m_tp_ptr->global_ts > (m_tp_ptr->skip_instructions + m_tp_ptr->warmup_period))
-            	{
-            		//----Check for migration in lower disk/NVM
-					if (m_cache_sys->is_last_level(m_cache_level) && !m_cache_sys->get_is_translation_hier())
-					{
-						assert(m_core_id == -1);
+				//----Check for migration in lower disk/NVM
+				if (m_cache_sys->is_last_level(m_cache_level) && !m_cache_sys->get_is_translation_hier())
+				{
+					assert(m_core_id == -1);
 
-						trace_tlb_tid_entry_t trace_entry;
-						trace_entry.va        = (uint64_t) req.m_addr;
-						trace_entry.ts        = (uint64_t) 0;
-						trace_entry.write     = !req.m_is_read;
-						trace_entry.large     = req.m_is_large;
-						trace_entry.tid       = (uint64_t) req.m_tid;
-						int eviction_count    = 0;
+					trace_tlb_tid_entry_t trace_entry;
+					trace_entry.va        = (uint64_t) req.m_addr;
+					trace_entry.ts        = (uint64_t) 0;
+					trace_entry.write     = !req.m_is_read;
+					trace_entry.large     = req.m_is_large;
+					trace_entry.tid       = (uint64_t) req.m_tid;
+					int eviction_count    = 0;
 
 #if 0
-						memFile_ptr_->write((char*)&trace_entry, 1);
+					memFile_ptr_->write((char*)&trace_entry, 1);
 #endif
-						if (!req.m_is_large && page_migration_model_->processPage(&req,eviction_count))
+					if (!req.m_is_large && page_migration_model_->processPage(&req,eviction_count))
+					{
+						assert(eviction_count == 1 || eviction_count == 2);
+
+						for (int i = 0 ; i < eviction_count; i++)
 						{
-							assert(eviction_count == 1 || eviction_count == 2);
+							//std::cout << "Migration itr " << m_tp_ptr->migration_iter;
 
-							for (int i = 0 ; i < eviction_count; i++)
+							Request * mig_req = new Request(req.m_addr, TRANSLATION_WRITE, req.m_tid, req.m_is_large, req_core_id);
+
+							if (mig_req->m_core_id == -1)
 							{
-								//std::cout << "Migration itr " << m_tp_ptr->migration_iter;
-
-								Request * mig_req = new Request(req.m_addr, TRANSLATION_WRITE, req.m_tid, req.m_is_large, req_core_id);
-
-								if (mig_req->m_core_id == -1)
-								{
-									std::cout << "[ERROR] Invalid core id. 1";
-									exit(0);
-								}
-
-								mig_req->is_migration_shootdown = true;
-
-								if (m_tp_ptr->migration_iter%4 != 0) //25% of all migration shootdowns are guest
-								{
-									std::cout << "[SHOOTDOWN_EVENT] Host shootdown\n";
-									mig_req->is_guest_shootdown = false;
-								}
-								else
-								{
-									m_tp_ptr->migration_iter = 0;
-								}
-
-								m_tp_ptr->addition_to_migration_queue++;
-								m_tp_ptr->add_to_migration_shootdown_queue(mig_req);
-								m_tp_ptr->migration_iter++;
+								std::cout << "[ERROR] Invalid core id. 1";
+								exit(0);
 							}
 
+							mig_req->is_migration_shootdown = true;
+
+							if (m_tp_ptr->migration_iter%4 != 0) //25% of all migration shootdowns are guest
+							{
+								std::cout << "[SHOOTDOWN_EVENT] Host shootdown\n";
+								mig_req->is_guest_shootdown = false;
+							}
+							else
+							{
+								m_tp_ptr->migration_iter = 0;
+							}
+
+							m_tp_ptr->addition_to_migration_queue++;
+							m_tp_ptr->add_to_migration_shootdown_queue(mig_req);
+							m_tp_ptr->migration_iter++;
 						}
 
-						mem_accesses++;
-
-						if (mem_accesses%1000000 == 0)
-							std::cout << "[MEMWRITE] Mem Accesses " << mem_accesses << std::endl;
 					}
-					//------
-            	}
+
+					(*mem_accesses)++;
+
+					if (mem_accesses->get_val()%1000000 == 0)
+						std::cout << "[MEMWRITE] Mem Accesses " << mem_accesses->get_val() << std::endl;
+				}
             }
         }
         else if(!line.dirty)
@@ -386,7 +396,8 @@ RequestStatus Cache::lookupAndFillCache(Request &req, unsigned int curr_latency,
         cur_addr = ((line.tag << m_num_line_offset_bits) << m_num_index_bits) | (index << m_num_line_offset_bits);
         
         //Is line dirty now?
-        line.dirty = line.dirty || (((txn_kind == DATA_WRITE) || (txn_kind == TRANSLATION_WRITE)) && (m_cache_level == 1)) || (txn_kind == DATA_WRITEBACK);
+        line.dirty = line.dirty || (((txn_kind == DATA_WRITE) ||
+        		(txn_kind == TRANSLATION_WRITE)) && (m_cache_level == 1)) || (txn_kind == DATA_WRITEBACK);
         
         assert(!((txn_kind == TRANSLATION_WRITE) | (txn_kind == TRANSLATION_WRITEBACK) | (txn_kind == TRANSLATION_READ)) ^(line.is_translation));
         
@@ -420,14 +431,11 @@ RequestStatus Cache::lookupAndFillCache(Request &req, unsigned int curr_latency,
         
         handle_coherence_action(coh_action, req, curr_latency, true);
 
-        if (m_tp_ptr->global_ts > (m_tp_ptr->skip_instructions + m_tp_ptr->warmup_period))
-        {
-			num_tr_hits += (is_translation);
-			num_data_hits += (!is_translation);
+		(*num_tr_hits) += (is_translation);
+		(*num_data_hits) += (!is_translation);
 
-			num_tr_accesses  += (is_translation);
-			num_data_accesses += (!is_translation);
-        }
+		(*num_tr_accesses) += (is_translation);
+		(*num_data_accesses) += (!is_translation);
 
         return REQUEST_HIT;
     }
@@ -589,79 +597,74 @@ RequestStatus Cache::lookupAndFillCache(Request &req, unsigned int curr_latency,
             m_cache_sys->m_hit_list.insert(std::make_pair(deadline, r));
         }
 
-        //Start counting after Warmup
-        if (m_tp_ptr->global_ts > (m_tp_ptr->skip_instructions + m_tp_ptr->warmup_period))
-        {
-        	num_mshr_tr_hits += (is_translation);
-			num_mshr_data_hits += (!is_translation);
+		(*num_mshr_tr_hits) += (is_translation);
+		(*num_mshr_data_hits) += (!is_translation);
 
-			num_tr_misses += (is_translation);
-			num_data_misses += (!is_translation);
+		(*num_tr_misses) += (is_translation);
+		(*num_data_misses) += (!is_translation);
 
-			num_tr_accesses  += (is_translation);
-			num_data_accesses += (!is_translation);
+		(*num_tr_accesses) += (is_translation);
+		(*num_data_accesses) += (!is_translation);
 
 
-			//----Check for migration in lower disk/NVM
-			if (m_cache_sys->is_last_level(m_cache_level) && !is_translation && !m_cache_sys->get_is_translation_hier())
-			{
-				assert(m_core_id == -1);
+		//----Check for migration in lower disk/NVM
+		if (m_cache_sys->is_last_level(m_cache_level) && !is_translation && !m_cache_sys->get_is_translation_hier())
+		{
+			assert(m_core_id == -1);
 
-				trace_tlb_tid_entry_t trace_entry;
-				trace_entry.va        = (uint64_t) req.m_addr;
-				trace_entry.ts        = (uint64_t) 0;
-				trace_entry.write     = !req.m_is_read;
-				trace_entry.large     = req.m_is_large;
-				trace_entry.tid       = (uint64_t) req.m_tid;
-				int eviction_count    = 0;
+			trace_tlb_tid_entry_t trace_entry;
+			trace_entry.va        = (uint64_t) req.m_addr;
+			trace_entry.ts        = (uint64_t) 0;
+			trace_entry.write     = !req.m_is_read;
+			trace_entry.large     = req.m_is_large;
+			trace_entry.tid       = (uint64_t) req.m_tid;
+			int eviction_count    = 0;
 
 #if 0
-						memFile_ptr_->write((char*)&trace_entry, 1);
+					memFile_ptr_->write((char*)&trace_entry, 1);
 #endif
 
-				//std::cout << "Mem Access : " << req;
+			//std::cout << "Mem Access : " << req;
 
-				if (!req.m_is_large && page_migration_model_->processPage(&req,eviction_count))
+			if (!req.m_is_large && page_migration_model_->processPage(&req,eviction_count))
+			{
+				assert(eviction_count == 1 || eviction_count == 2);
+
+				for (int i = 0 ; i < eviction_count; i++)
 				{
-					assert(eviction_count == 1 || eviction_count == 2);
+					Request * mig_req = new Request(req.m_addr,
+												TRANSLATION_WRITE, req.m_tid, req.m_is_large, req.m_core_id);
 
-					for (int i = 0 ; i < eviction_count; i++)
+					if (mig_req->m_core_id == -1)
 					{
-						Request * mig_req = new Request(req.m_addr,
-													TRANSLATION_WRITE, req.m_tid, req.m_is_large, req.m_core_id);
-
-						if (mig_req->m_core_id == -1)
-						{
-							std::cout << "[ERROR] Invalid core id. 1";
-							exit(0);
-						}
-
-						mig_req->is_migration_shootdown = true;
-
-						if (m_tp_ptr->migration_iter%4 != 0) //25% of all migration shootdowns are guest
-						{
-							std::cout << "[SHOOTDOWN_EVENT] Host shootdown\n";
-							mig_req->is_guest_shootdown = false;
-						}
-						else
-						{
-							m_tp_ptr->migration_iter = 0;
-						}
-
-						m_tp_ptr->addition_to_migration_queue++;
-						m_tp_ptr->add_to_migration_shootdown_queue(mig_req);
-						m_tp_ptr->migration_iter++;
+						std::cout << "[ERROR] Invalid core id. 1";
+						exit(0);
 					}
 
+					mig_req->is_migration_shootdown = true;
+
+					if (m_tp_ptr->migration_iter%4 != 0) //25% of all migration shootdowns are guest
+					{
+						std::cout << "[SHOOTDOWN_EVENT] Host shootdown\n";
+						mig_req->is_guest_shootdown = false;
+					}
+					else
+					{
+						m_tp_ptr->migration_iter = 0;
+					}
+
+					m_tp_ptr->addition_to_migration_queue++;
+					m_tp_ptr->add_to_migration_shootdown_queue(mig_req);
+					m_tp_ptr->migration_iter++;
 				}
 
-				mem_accesses++;
-
-				if (mem_accesses%1000000 == 0)
-					std::cout << "[MEMWRITE] Mem Accesses " << mem_accesses << std::endl;
 			}
-			//------
-        }
+
+			(*mem_accesses)++;
+
+			if (mem_accesses->get_val()%1000000 == 0)
+				std::cout << "[MEMWRITE] Mem Accesses " << mem_accesses->get_val() << std::endl;
+		}
 
         #ifdef DEADLOCK_DEBUG
         if(req.m_addr == 0x0)
@@ -702,72 +705,69 @@ RequestStatus Cache::lookupAndFillCache(Request &req, unsigned int curr_latency,
         //Ensure insertion in the MSHR address list
         assert(m_mshr_addr.find(req.m_addr) != m_mshr_addr.end());
 
-        if (m_tp_ptr->global_ts > (m_tp_ptr->skip_instructions + m_tp_ptr->warmup_period))
-        {
-			num_tr_misses += (is_translation);
-			num_data_misses += (!is_translation);
+		(*num_tr_misses) += (is_translation);
+		(*num_data_misses) += (!is_translation);
 
-			num_tr_accesses  += (is_translation);
-			num_data_accesses += (!is_translation);
+		(*num_tr_accesses)  += (is_translation);
+		(*num_data_accesses) += (!is_translation);
 
-			//----Check for migration in lower disk/NVM
-			if (m_cache_sys->is_last_level(m_cache_level) && !is_translation && !m_cache_sys->get_is_translation_hier())
-			{
-				assert(m_core_id == -1);
+		//----Check for migration in lower disk/NVM
+		if (m_cache_sys->is_last_level(m_cache_level) && !is_translation && !m_cache_sys->get_is_translation_hier())
+		{
+			assert(m_core_id == -1);
 
-				trace_tlb_tid_entry_t trace_entry;
-				trace_entry.va        = (uint64_t) req.m_addr;
-				trace_entry.ts        = (uint64_t) 0;
-				trace_entry.write     = !req.m_is_read;
-				trace_entry.large     = req.m_is_large;
-				trace_entry.tid       = (uint64_t) req.m_tid;
-				int eviction_count	  = 0;
+			trace_tlb_tid_entry_t trace_entry;
+			trace_entry.va        = (uint64_t) req.m_addr;
+			trace_entry.ts        = (uint64_t) 0;
+			trace_entry.write     = !req.m_is_read;
+			trace_entry.large     = req.m_is_large;
+			trace_entry.tid       = (uint64_t) req.m_tid;
+			int eviction_count	  = 0;
 #if 0
-						memFile_ptr_->write((char*)&trace_entry, 1);
+					memFile_ptr_->write((char*)&trace_entry, 1);
 #endif
 
-				//std::cout << "Mem Access : " << req;
+			//std::cout << "Mem Access : " << req;
 
-				if (!req.m_is_large && page_migration_model_->processPage(&req, eviction_count))
+			if (!req.m_is_large && page_migration_model_->processPage(&req, eviction_count))
+			{
+
+				assert(eviction_count == 1 || eviction_count == 2);
+
+				for (int i = 0 ; i < eviction_count; i++)
 				{
+					Request * mig_req = new Request(req.m_addr,
+												TRANSLATION_WRITE, req.m_tid, req.m_is_large, req.m_core_id);
 
-					assert(eviction_count == 1 || eviction_count == 2);
-
-					for (int i = 0 ; i < eviction_count; i++)
+					if (mig_req->m_core_id == -1)
 					{
-						Request * mig_req = new Request(req.m_addr,
-													TRANSLATION_WRITE, req.m_tid, req.m_is_large, req.m_core_id);
-
-						if (mig_req->m_core_id == -1)
-						{
-							std::cout << "[ERROR] Invalid core id. 1";
-							exit(0);
-						}
-
-						mig_req->is_migration_shootdown = true;
-
-						if (m_tp_ptr->migration_iter%4 != 0) //25% of all migration shootdowns are guest
-						{
-							std::cout << "[SHOOTDOWN_EVENT] Host shootdown\n";
-							mig_req->is_guest_shootdown = false;
-						}
-						else
-						{
-							m_tp_ptr->migration_iter = 0;
-						}
-
-						m_tp_ptr->addition_to_migration_queue++;
-						m_tp_ptr->add_to_migration_shootdown_queue(mig_req);
-						m_tp_ptr->migration_iter++;
+						std::cout << "[ERROR] Invalid core id. 1";
+						exit(0);
 					}
+
+					mig_req->is_migration_shootdown = true;
+
+					if (m_tp_ptr->migration_iter%4 != 0) //25% of all migration shootdowns are guest
+					{
+						std::cout << "[SHOOTDOWN_EVENT] Host shootdown\n";
+						mig_req->is_guest_shootdown = false;
+					}
+					else
+					{
+						m_tp_ptr->migration_iter = 0;
+					}
+
+					m_tp_ptr->addition_to_migration_queue++;
+					m_tp_ptr->add_to_migration_shootdown_queue(mig_req);
+					m_tp_ptr->migration_iter++;
 				}
-
-				mem_accesses++;
-
-				if (mem_accesses%1000000 == 0)
-					std::cout << "[MEMWRITE] Mem Accesses " << mem_accesses << std::endl;
 			}
-			//------
+
+			(*mem_accesses)++;
+
+			if (mem_accesses->get_val()%1000000 == 0)
+				std::cout << "[MEMWRITE] Mem Accesses " << mem_accesses->get_val() << std::endl;
+
         }
         if(m_cache_type == TRANSLATION_ONLY && ((m_cache_level == 1) || (m_cache_level == 2)))
         {
@@ -800,7 +800,9 @@ RequestStatus Cache::lookupAndFillCache(Request &req, unsigned int curr_latency,
             //TODO: YMARATHE: eliminate this copy in all cases
             if(is_tr_to_dat_boundary)
             {
-                Request req_copy((is_tr_to_dat_boundary) ? m_core->getL3TLBAddr(addr, txn_kind, tid, is_large): addr, req.m_type, req.m_tid, req.m_is_large, req.m_core_id);
+                Request req_copy((is_tr_to_dat_boundary) ?
+                		m_core->getL3TLBAddr(addr, txn_kind, tid, is_large):
+						addr, req.m_type, req.m_tid, req.m_is_large, req.m_core_id);
                 lower_cache->lookupAndFillCache(req_copy, curr_latency + m_latency_cycles);
             }
             else
@@ -819,16 +821,11 @@ RequestStatus Cache::lookupAndFillCache(Request &req, unsigned int curr_latency,
         std::shared_ptr<Request> r = std::make_shared<Request>(req);
 //        uint64_t deadline = m_cache_sys->m_clk + curr_latency + m_cache_sys->m_memory_latency;
 
-
         uint64_t deadline = 0;
         if (!page_migration_model_->is_page_in_nvm(&req))
-                deadline = m_cache_sys->m_clk + curr_latency + m_cache_sys->m_memory_latency;
+        	deadline = m_cache_sys->m_clk + curr_latency + m_cache_sys->m_memory_latency;
         else
-              deadline = m_cache_sys->m_clk + curr_latency + 800;
-
-
-
-
+        	deadline = m_cache_sys->m_clk + curr_latency + 800;
         
         //If element already exists in the list, move deadline.
         while(m_cache_sys->m_wait_list.find(deadline) != m_cache_sys->m_wait_list.end())
@@ -1160,8 +1157,8 @@ bool Cache::handle_coherence_action(CoherenceAction coh_action, Request &r, unsi
                 }
                 needs_state_correction = (coh_action == BROADCAST_TRANSLATION_READ);
             }
-            num_data_coh_msgs += (!is_translation);
-            num_tr_coh_msgs += (is_translation);
+            (*num_data_coh_msgs) += (!is_translation);
+            (*num_tr_coh_msgs) += (is_translation);
         }
         else if(!same_cache_sys && (m_cache_type == TRANSLATION_ONLY))
         {
@@ -1202,11 +1199,8 @@ bool Cache::handle_coherence_action(CoherenceAction coh_action, Request &r, unsi
                 }
             }
 
-            if (m_tp_ptr->global_ts > (m_tp_ptr->skip_instructions + m_tp_ptr->warmup_period))
-            {
-            	num_data_coh_msgs += (!is_translation);
-            	num_tr_coh_msgs += (is_translation);
-            }
+			(*num_data_coh_msgs) += (!is_translation);
+			(*num_tr_coh_msgs) += (is_translation);
         }
     }
     else if(coh_action == STATE_CORRECTION)
@@ -1430,6 +1424,11 @@ bool Cache::is_found_by_cotag(uint64_t pom_tlb_addr, uint64_t tid, unsigned int 
 void Cache::add_traceprocessor(TraceProcessor *tp)
 {
     m_tp_ptr = tp;
+
+    for(int i = 0; i < module_counters.size(); i++)
+    {
+    	module_counters[i]->set_tp(tp);
+    }
 }
 
 void Cache::add_mem_file_ptr(std::ofstream * memFile)

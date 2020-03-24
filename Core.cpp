@@ -209,11 +209,7 @@ void Core::tick(std::string config, uint64_t initiator_penalty, uint64_t victim_
 			}
 			else
 			{
-				if (m_tp_ptr->global_ts > (m_tp_ptr->skip_instructions + m_tp_ptr->warmup_period))
-				{
-					num_stall_cycles++;
-				}
-
+				(*num_stall_cycles)++;
 				num_stall_cycles_per_shootdown++;
 
 				//std::cout << "num_stall_cycles_per_shootdown" << num_stall_cycles_per_shootdown << std::endl;
@@ -229,13 +225,10 @@ void Core::tick(std::string config, uint64_t initiator_penalty, uint64_t victim_
 			std::cout << "Translation write done = " << m_rob->m_window[tr_coh_issue_ptr].done << ", flushing caches\n";
 			m_cache_hier->clflush(tlb_shootdown_addr, tlb_shootdown_tid, is_translation);
 
-			if (m_tp_ptr->global_ts > (m_tp_ptr->skip_instructions + m_tp_ptr->warmup_period))
-			{
-				if (is_stall_guest_shootdown || config == "HATRIC")
-					num_stall_cycles += 100; // Per shootdown penalty
-				else
-					num_stall_cycles += 500;
-			}
+			if (is_stall_guest_shootdown || config == "HATRIC")
+				(*num_stall_cycles) += 100; // Per shootdown penalty
+			else
+				(*num_stall_cycles) += 500;
 
 			std::cout << "Flushed caches\n";
 
@@ -246,7 +239,7 @@ void Core::tick(std::string config, uint64_t initiator_penalty, uint64_t victim_
 				//assert(!m_cache_hier->m_caches[i]->lookupCache(req));
 			}
 			tr_wr_in_progress = false;
-			std::cout << "Number of stall cycles = " << num_stall_cycles << " on core " << m_core_id << "\n";
+			std::cout << "Number of stall cycles = " << num_stall_cycles->get_val() << " on core " << m_core_id << "\n";
 			std::cout << "Number of shootdowns on core = " << m_core_id << " = " << num_shootdown << "\n";
 		}
     }
@@ -254,13 +247,8 @@ void Core::tick(std::string config, uint64_t initiator_penalty, uint64_t victim_
     if(!stall)
     {
     	int instr_retired = m_rob->retire(m_clk);
-
         m_num_retired += instr_retired;
-
-        if (m_tp_ptr->global_ts > (m_tp_ptr->skip_instructions + m_tp_ptr->warmup_period))
-        {
-        	instructions_retired+=instr_retired;
-        }
+        (*instructions_retired)+=instr_retired;
     }
 
     if(m_rob->request_queue.size() > 0)
@@ -339,11 +327,8 @@ void Core::tick(std::string config, uint64_t initiator_penalty, uint64_t victim_
 					if (config == "IDEAL" || (tlb_shootdown_addr != actual_shootdown_identifier
 							&& (!req.is_migration_shootdown)))
 					{
-						if (m_tp_ptr->global_ts > (m_tp_ptr->skip_instructions + m_tp_ptr->warmup_period))
-						{
-							std::cout << "Incrementing page invalidations for : " << req;
-							page_invalidations++;
-						}
+						std::cout << "Incrementing page invalidations for : " << req;
+						(*page_invalidations)++;
 						tlb_shootdown_penalty = 0;
 						stall = true;
 					}
@@ -353,11 +338,7 @@ void Core::tick(std::string config, uint64_t initiator_penalty, uint64_t victim_
 						if (tlb_shootdown_addr == actual_shootdown_identifier)
 						{
 							assert(tlb_shootdown_tid < NUM_CORES); //TID for actual shootdown is victim cores
-
-							if (m_tp_ptr->global_ts > (m_tp_ptr->skip_instructions + m_tp_ptr->warmup_period))
-							{
-								num_stall_cycles+=(tlb_shootdown_tid*victim_penalty);
-							}
+							(*num_stall_cycles)+=(tlb_shootdown_tid*victim_penalty);
 						}
 
 						if (stall)
@@ -371,18 +352,15 @@ void Core::tick(std::string config, uint64_t initiator_penalty, uint64_t victim_
 							num_stall_cycles_per_shootdown = 0;
 						}
 
-						if (m_tp_ptr->global_ts > (m_tp_ptr->skip_instructions + m_tp_ptr->warmup_period))
-						{
-							std::cout << "[GUEST/HOST] " << req;
+						std::cout << "[GUEST/HOST] " << req;
 
-							if (req.is_guest_shootdown)
-								num_guest_shootdowns++;
-							else
-								num_host_shootdowns++;
+						if (req.is_guest_shootdown)
+							(*num_guest_shootdowns)++;
+						else
+							(*num_host_shootdowns)++;
 
-							std::cout << "num_host_shootdowns " << num_host_shootdowns <<std::endl;
-							num_shootdown++;
-						}
+						std::cout << "num_host_shootdowns " << num_host_shootdowns->get_val() <<std::endl;
+						(*num_shootdown)++;
 					}
 
 					std::cout << "Stalling core " << m_core_id << " at cycle = " << m_clk << " until translation coherence is complete\n";
@@ -406,18 +384,15 @@ void Core::tick(std::string config, uint64_t initiator_penalty, uint64_t victim_
 						tlb_shootdown_is_large = req.m_is_large;
 						num_stall_cycles_per_shootdown = 0;
 
-		            	if (m_tp_ptr->global_ts > (m_tp_ptr->skip_instructions + m_tp_ptr->warmup_period))
-		            	{
-		            		std::cout << "[GUEST/HOST] " << req;
+						std::cout << "[GUEST/HOST] " << req;
 
-		            		if (req.is_guest_shootdown)
-		            			num_guest_shootdowns++;
-		            		else
-		            			num_host_shootdowns++;
+						if (req.is_guest_shootdown)
+							(*num_guest_shootdowns)++;
+						else
+							(*num_host_shootdowns)++;
 
-		            		std::cout << "num_host_shootdowns " << num_host_shootdowns <<std::endl;
-		            		num_shootdown++;
-		            	}
+						std::cout << "num_host_shootdowns " << num_host_shootdowns->get_val() <<std::endl;
+						(*num_shootdown)++;
 
 						std::cout << "Stalling core " << m_core_id << " at cycle = " << m_clk << " until translation coherence is complete\n";
 					}
@@ -509,11 +484,7 @@ void Core::tick(std::string config, uint64_t initiator_penalty, uint64_t victim_
     if(!m_rob->is_empty() && !stall)
     {
 		m_clk++;
-
-        if (m_tp_ptr->global_ts > (m_tp_ptr->skip_instructions + m_tp_ptr->warmup_period))
-        {
-        	num_cycles++;
-        }
+        (*num_cycles)++;
     }
 }
 
@@ -528,6 +499,12 @@ void Core::set_core_id(unsigned int core_id)
 void Core::add_traceprocessor(TraceProcessor *tp)
 {
     m_tp_ptr = tp;
+
+    //std::cout << "module_counters.size() " << module_counters.size() << std::endl;
+    for(int i = 0; i < module_counters.size(); i++)
+    {
+    	module_counters[i]->set_tp(tp);
+    }
 }
 
 void Core::add_trace(Request *req)

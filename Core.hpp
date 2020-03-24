@@ -57,45 +57,51 @@ private:
     std::shared_ptr<CacheSys> m_cache_hier;
     std::shared_ptr<CacheSys> m_tlb_hier;
     
-    unsigned int m_core_id;
+    unsigned int m_core_id = 0;
     
     std::map<uint64_t, std::set<AddrMapKey, AddrMapComparator>> va2L3TLBAddr;
 
-    unsigned int tr_coh_issue_ptr;
+    unsigned int tr_coh_issue_ptr = 0;
 
     std::vector<std::shared_ptr<Core>> m_other_cores;
 
 public:
     uint64_t m_l3_small_tlb_base = 0x0;
     uint64_t m_l3_small_tlb_size = 16 * 1024 * 1024;
-    bool stall;
-    bool tr_wr_in_progress;
+    bool stall = false;
+    bool tr_wr_in_progress = false;
     std::shared_ptr<ROB> m_rob;
     std::deque<Request*> traceVec;
     uint64_t m_num_issued  = 0;
     uint64_t m_num_retired = 0;
-    uint64_t m_clk;
-    uint64_t num_stall_cycles = 0;
-    uint64_t tlb_shootdown_penalty;
-    uint64_t tlb_shootdown_addr;
+    uint64_t m_clk = 0;
+    uint64_t tlb_shootdown_penalty = 0;
+    uint64_t tlb_shootdown_addr = 0;
     uint64_t actual_shootdown_identifier = 0xffffffffffffffff;
-    uint64_t tlb_shootdown_tid;
-    bool tlb_shootdown_is_large;
+    uint64_t tlb_shootdown_tid = 0;
+    bool tlb_shootdown_is_large = false;
     uint64_t num_stall_cycles_per_shootdown = 0;
-    uint64_t num_shootdown = 0;
     uint64_t outstanding_shootdowns = 0;
-    uint64_t num_guest_shootdowns = 0, num_host_shootdowns = 0, page_invalidations = 0;
     TraceProcessor * m_tp_ptr = nullptr;
     bool is_stall_guest_shootdown = true;
-    uint64_t num_tr_invalidations = 0;
-    uint64_t num_false_invalidations = 0;
 
-    //Actual performance counters
+    //Counters
 
-    uint64_t instructions_retired = 0;
-    uint64_t num_cycles = 0;
+    std::shared_ptr <counter> instructions_retired;
+    std::shared_ptr <counter> num_cycles;
+    std::shared_ptr <counter> num_stall_cycles;
+    std::shared_ptr <counter> num_false_invalidations;
+    std::shared_ptr <counter> num_tr_invalidations;
+    std::shared_ptr <counter> num_shootdown;
+    std::shared_ptr <counter> num_guest_shootdowns;
+    std::shared_ptr <counter> num_host_shootdowns;
+    std::shared_ptr <counter> page_invalidations;
+    std::shared_ptr <counter> tlb_accesses_during_shootdown;
 
-    Core(std::shared_ptr<CacheSys> cache_hier, std::shared_ptr<CacheSys> tlb_hier, std::shared_ptr<ROB> rob, uint64_t l3_small_tlb_base = 0x0, uint64_t l3_small_tlb_size = 1024 * 1024) :
+    std::vector <counter *> module_counters;
+
+    Core(std::shared_ptr<CacheSys> cache_hier, std::shared_ptr<CacheSys> tlb_hier, std::shared_ptr<ROB> rob,
+    		uint64_t l3_small_tlb_base = 0xf00000000000, uint64_t l3_small_tlb_size = 1024 * 1024) :
         m_cache_hier(cache_hier),
         m_tlb_hier(tlb_hier),
         m_rob(rob),
@@ -107,6 +113,20 @@ public:
             m_clk = 0;
             stall = false;
             tr_wr_in_progress = false;
+
+            instructions_retired = std::make_shared <counter>("Instructions",module_counters);
+            num_cycles = std::make_shared <counter>("Cycles",module_counters);
+            num_stall_cycles = std::make_shared <counter>("Stall Cycles",module_counters);
+            num_false_invalidations = std::make_shared <counter>("Num False Invalidations",module_counters);
+            num_tr_invalidations = std::make_shared <counter>("Num Translation Invalidations",module_counters);
+            num_shootdown = std::make_shared <counter>("Num shootdowns",module_counters);
+            num_guest_shootdowns = std::make_shared <counter>("Num Guest Shootdowns",module_counters);
+            num_host_shootdowns = std::make_shared <counter>("Num Host Shootdowns",module_counters);
+            page_invalidations = std::make_shared <counter>("Num Page Invalidations",module_counters);
+            tlb_accesses_during_shootdown = std::make_shared <counter>("TLB accesses during shootdown",module_counters);
+
+//            module_counters.push_back(&instructions_retired);
+//            module_counters.push_back(&num_cycles);
         }
     
     bool interfaceHier(bool ll_interface_complete);
