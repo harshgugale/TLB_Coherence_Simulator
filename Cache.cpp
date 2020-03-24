@@ -82,7 +82,7 @@ bool Cache::is_partially_found(const std::vector<CacheLine>& set,
 
 									if((l.tag & mask_for_partial_compare) == partial_tag)
 									{
-										assert((partial_tag >> log2(mask_for_partial_compare + 1)) == 0);
+										assert((partial_tag >> (int)log2((int)mask_for_partial_compare + 1)) == 0);
 										partial_match = true;
 									}
 								   //Threads share address space, so no need to check for tid if the request type is not translation
