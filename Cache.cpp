@@ -61,11 +61,11 @@ bool Cache::is_partially_found(const std::vector<CacheLine>& set,
 
 	if (is_large)
 	{
-		partial_tag = ((partial_tag - m_core->m_l3_small_tlb_size) >> m_num_index_bits);
+		partial_tag = ((partial_addr - m_core->m_l3_small_tlb_size - (m_core->m_l3_small_tlb_base>>6)) >> m_num_index_bits);
 	}
 	else
 	{
-		partial_tag = (partial_addr >> m_num_index_bits);
+		partial_tag = ((partial_addr - (m_core->m_l3_small_tlb_base>>6)) >> m_num_index_bits);
 	}
 
 
@@ -82,7 +82,7 @@ bool Cache::is_partially_found(const std::vector<CacheLine>& set,
 
 									if((l.tag & mask_for_partial_compare) == partial_tag)
 									{
-										assert((partial_tag >> mask_for_partial_compare) == 0);
+										assert((partial_tag >> log2(mask_for_partial_compare + 1)) == 0);
 										partial_match = true;
 									}
 								   //Threads share address space, so no need to check for tid if the request type is not translation
@@ -606,66 +606,6 @@ RequestStatus Cache::lookupAndFillCache(Request &req, unsigned int curr_latency,
 		(*num_tr_accesses) += (is_translation);
 		(*num_data_accesses) += (!is_translation);
 
-
-		//----Check for migration in lower disk/NVM
-		if (m_cache_sys->is_last_level(m_cache_level) && !is_translation && !m_cache_sys->get_is_translation_hier())
-		{
-			assert(m_core_id == -1);
-
-			trace_tlb_tid_entry_t trace_entry;
-			trace_entry.va        = (uint64_t) req.m_addr;
-			trace_entry.ts        = (uint64_t) 0;
-			trace_entry.write     = !req.m_is_read;
-			trace_entry.large     = req.m_is_large;
-			trace_entry.tid       = (uint64_t) req.m_tid;
-			int eviction_count    = 0;
-
-#if 0
-					memFile_ptr_->write((char*)&trace_entry, 1);
-#endif
-
-			//std::cout << "Mem Access : " << req;
-
-			if (!req.m_is_large && page_migration_model_->processPage(&req,eviction_count))
-			{
-				assert(eviction_count == 1 || eviction_count == 2);
-
-				for (int i = 0 ; i < eviction_count; i++)
-				{
-					Request * mig_req = new Request(req.m_addr,
-												TRANSLATION_WRITE, req.m_tid, req.m_is_large, req.m_core_id);
-
-					if (mig_req->m_core_id == -1)
-					{
-						std::cout << "[ERROR] Invalid core id. 1";
-						exit(0);
-					}
-
-					mig_req->is_migration_shootdown = true;
-
-					if (m_tp_ptr->migration_iter%4 != 0) //25% of all migration shootdowns are guest
-					{
-						std::cout << "[SHOOTDOWN_EVENT] Host shootdown\n";
-						mig_req->is_guest_shootdown = false;
-					}
-					else
-					{
-						m_tp_ptr->migration_iter = 0;
-					}
-
-					m_tp_ptr->addition_to_migration_queue++;
-					m_tp_ptr->add_to_migration_shootdown_queue(mig_req);
-					m_tp_ptr->migration_iter++;
-				}
-
-			}
-
-			(*mem_accesses)++;
-
-			if (mem_accesses->get_val()%1000000 == 0)
-				std::cout << "[MEMWRITE] Mem Accesses " << mem_accesses->get_val() << std::endl;
-		}
-
         #ifdef DEADLOCK_DEBUG
         if(req.m_addr == 0x0)
         {
@@ -800,9 +740,7 @@ RequestStatus Cache::lookupAndFillCache(Request &req, unsigned int curr_latency,
             //TODO: YMARATHE: eliminate this copy in all cases
             if(is_tr_to_dat_boundary)
             {
-                Request req_copy((is_tr_to_dat_boundary) ?
-                		m_core->getL3TLBAddr(addr, txn_kind, tid, is_large):
-						addr, req.m_type, req.m_tid, req.m_is_large, req.m_core_id);
+                Request req_copy(m_core->getL3TLBAddr(addr, txn_kind, tid, is_large), req.m_type, req.m_tid, req.m_is_large, req.m_core_id);
                 lower_cache->lookupAndFillCache(req_copy, curr_latency + m_latency_cycles);
             }
             else
