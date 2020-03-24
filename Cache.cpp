@@ -82,7 +82,7 @@ bool Cache::is_partially_found(const std::vector<CacheLine>& set,
 
 									if((l.tag & mask_for_partial_compare) == partial_tag)
 									{
-										assert((partial_tag >> (int)log2((int)mask_for_partial_compare + 1)) == 0);
+										assert((partial_tag >> (int)log2((double)mask_for_partial_compare + 1)) == 0);
 										partial_match = true;
 									}
 								   //Threads share address space, so no need to check for tid if the request type is not translation
@@ -246,7 +246,7 @@ void Cache::evict(uint64_t set_num, const CacheLine &line, int req_core_id)
 
 					(*mem_accesses)++;
 
-					if (mem_accesses->get_val()%1000000 == 0)
+					if (mem_accesses->get_val()%1000000 == 1)
 						std::cout << "[MEMWRITE] Mem Accesses " << mem_accesses->get_val() << std::endl;
 				}
             }
@@ -705,7 +705,7 @@ RequestStatus Cache::lookupAndFillCache(Request &req, unsigned int curr_latency,
 
 			(*mem_accesses)++;
 
-			if (mem_accesses->get_val()%1000000 == 0)
+			if (mem_accesses->get_val()%1000000 == 1)
 				std::cout << "[MEMWRITE] Mem Accesses " << mem_accesses->get_val() << std::endl;
 
         }
