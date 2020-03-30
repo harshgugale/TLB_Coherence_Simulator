@@ -643,10 +643,10 @@ void print_results(std::ofstream &outFile, TraceProcessor &tp, std::string bench
 		outFile << "[L3 LARGE TLB] MPKI = " << (double) (l2_tlb_misses/l3_tlb_large->num_tr_misses->get_val()) << "\n";
 	}
 
-	assert(l2_tlb_misses > l3_tlb_small->num_tr_misses->get_val());
-
-	if(total_instructions)
+	if(total_num_cycles)
 	{
+		assert(l2_tlb_misses > l3_tlb_small->num_tr_misses->get_val());
+
 		outFile << "Native Baseline IPC : "
 				<< (double) (total_instructions)/(total_num_cycles + total_stall_cycles +
 																	((l2_tlb_misses - l3_tlb_small->num_tr_misses->get_val())*35))
