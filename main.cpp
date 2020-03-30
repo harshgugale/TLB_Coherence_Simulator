@@ -452,6 +452,7 @@ void print_results(std::ofstream &outFile, TraceProcessor &tp, std::string bench
 	outFile << "\nInitiator penalty " << initiator_penalty;
 	outFile << "\nVictim penalty : " << victim_penalty;
 	outFile << "\nMax TS to Simulate : " << tp.warmup_period + tp.skip_instructions + tp.instrument_instructions;
+	outFile << "\nSkipped instructions : " << tp.skip_instructions
 	outFile << "\nNum DRAM pages : " << num_dram_pages;
 	outFile << "\nNum NVM/Disk Pages : " << num_nvm_disk_pages;
 	outFile << "\nMigration threshold : " << migration_threshold;
