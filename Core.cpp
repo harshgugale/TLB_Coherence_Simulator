@@ -204,9 +204,9 @@ void Core::tick(std::string config, uint64_t initiator_penalty, uint64_t victim_
 				}
 				stall = false;
 				std::cout << "Unstalling core " << m_core_id << " at cycle = " << m_clk << "\n";
-				std::cout << "Number of stall cycles = " << num_stall_cycles << " on core " << m_core_id << "\n";
+				std::cout << "Number of stall cycles = " << num_stall_cycles->get_val() << " on core " << m_core_id << "\n";
 				std::cout << "Stall on core " << m_core_id << " = " << stall << "\n";
-				std::cout << "Number of shootdowns on core = " << m_core_id << " = " << num_shootdown << "\n";
+				std::cout << "Number of shootdowns on core = " << m_core_id << " = " << num_shootdown->get_val() << "\n";
 			}
 			else
 			{

@@ -50,7 +50,7 @@ public:
 	    memset(dram_page_references,false,num_dram_pages*sizeof(bool));
 	    memset(page_counts,0,num_disk_nvm_pages*sizeof(int64_t));
 
-	    num_migrations = std::make_shared <counter>("Total Num of Migrations",module_counters);
+	    num_migrations = std::make_shared <counter>("Total Num of Migrations (Insertions to Queue)",module_counters);
 		eviction_count_1 = std::make_shared <counter>("Single Evictions",module_counters);
 		eviction_count_2 = std::make_shared <counter>("Double Evictions",module_counters);
 		prefetch_already_in_dram = std::make_shared <counter>("Prefetches already in DRAM",module_counters);;

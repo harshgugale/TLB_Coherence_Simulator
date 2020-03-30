@@ -565,6 +565,11 @@ void print_results(std::ofstream &outFile, TraceProcessor &tp, std::string bench
 		}
 	}
 
+	uint64_t migration_guest_shootdown = (total_host_shootdowns/3);
+	uint64_t guest_shootdown_program = (total_guest_shootdowns - migration_guest_shootdown);
+	uint64_t total_migration_shootdowns = migration_guest_shootdown + total_host_shootdowns;
+	assert(guest_shootdown_program >= 0);
+
 	outFile << "----------------------------------------------------------------------\n";
 
 	if(!tp.is_multicore)
@@ -585,8 +590,11 @@ void print_results(std::ofstream &outFile, TraceProcessor &tp, std::string bench
 			outFile << "[MIGRATION MODEL] " << (*c);
 		}
 
-		outFile << "Num Guest shootdowns = " << total_guest_shootdowns << "\n";
+		outFile << "Total Num Guest shootdowns = " << total_guest_shootdowns << "\n";
+		outFile << "Num Guest shootdowns (program) = " << guest_shootdown_program << "\n";
+		outFile << "Num Guest shootdowns (migration) = " << migration_guest_shootdown << "\n";
 		outFile << "Num Host shootdowns = " << total_host_shootdowns << "\n";
+		outFile << "Total Num of Actual Migration shootdowns = " << total_migration_shootdowns << "\n";
 		outFile << "Total page invalidations (Excludes guest/host shootdowns) = " << total_page_invalidations << "\n";
 		outFile << "Total translation invalidations = " << total_tr_invalidations << "\n";
 		outFile << "Total False invalidations = " << total_false_invalidations << "\n";
@@ -622,6 +630,7 @@ void print_results(std::ofstream &outFile, TraceProcessor &tp, std::string bench
 	if(total_instructions)
 	{
 		outFile << "[L3 SMALL TLB] MPKI = " << (double) (l3_tlb_small->num_tr_misses->get_val() * 1000.0)/(total_instructions) << "\n";
+		outFile << "[L3 SMALL TLB] ATLB Hit Rate = " << (double) (l3_tlb_small->num_tr_misses->get_val() * 1000.0)/(total_instructions) << "\n";
 	}
 
 	for (auto const& c: l3_tlb_large->module_counters)
@@ -631,8 +640,114 @@ void print_results(std::ofstream &outFile, TraceProcessor &tp, std::string bench
 
 	if(total_instructions)
 	{
-		outFile << "[L3 LARGE TLB] MPKI = " << (double) (l3_tlb_large->num_tr_misses->get_val() * 1000.0)/(total_instructions) << "\n";
+		outFile << "[L3 LARGE TLB] MPKI = " << (double) (l2_tlb_misses/l3_tlb_large->num_tr_misses->get_val()) << "\n";
 	}
+
+	assert(l2_tlb_misses > l3_tlb_small->num_tr_misses->get_val());
+
+	outFile << "Native Baseline IPC : "
+			<< (double) (total_instructions)/(total_num_cycles + total_stall_cycles +
+																((l2_tlb_misses - l3_tlb_small->num_tr_misses->get_val())*35))
+			<< std::endl;
+
+	outFile << "Native POMTLB IPC : "
+			<< (double) (total_instructions)/(total_num_cycles + total_stall_cycles) << std::endl;
+
+	outFile << "Native HATRIC IPC : "
+			<< (double) (total_instructions)/(total_num_cycles + (total_shootdowns*100))
+			<< std::endl;
+
+	outFile << "Native TCAT IPC : "
+			<< (double) (total_instructions)/(total_num_cycles +
+										((total_page_invalidations + migration_guest_shootdown + total_host_shootdowns)*200))
+			<< std::endl;
+
+	outFile << "Native Ideal IPC : "
+			<< (double) (total_instructions)/(total_num_cycles)
+			<< std::endl;
+
+
+	//Virtual Stats
+
+	uint32_t virtual_stall_cycles = (total_stall_cycles*3.2);
+
+	outFile << "Virtual Baseline IPC : "
+			<< (double) (total_instructions)/(total_num_cycles + virtual_stall_cycles +
+																((l2_tlb_misses - l3_tlb_small->num_tr_misses->get_val())*75))
+			<< std::endl;
+
+	outFile << "Virtual POMTLB IPC : "
+			<< (double) (total_instructions)/(total_num_cycles + virtual_stall_cycles) << std::endl;
+
+	outFile << "Virtual HATRIC IPC : "
+			<< (double) (total_instructions)/(total_num_cycles + (total_guest_shootdowns*50000) + (total_host_shootdowns*100))
+			<< std::endl;
+
+	outFile << "Virtual TCAT IPC : "
+			<< (double) (total_instructions)/(total_num_cycles +
+						((total_page_invalidations + migration_guest_shootdown)*200) +
+						((total_host_shootdowns)*500) +
+						((l3_tlb_small->num_tr_misses->get_val() + l3_tlb_large->num_tr_misses->get_val())*200))
+			<< std::endl;
+
+	outFile << "Virtual Ideal IPC : "
+			<< (double) (total_instructions)/(total_num_cycles)
+			<< std::endl;
+
+	outFile << "Virtual TCAT 1K : "
+			<< (double) (total_instructions)/(total_num_cycles +
+					((total_page_invalidations + migration_guest_shootdown)*2000) +
+					((total_host_shootdowns)*5000) +
+					((l3_tlb_small->num_tr_misses->get_val() + l3_tlb_large->num_tr_misses->get_val())*2000))
+			<< std::endl;
+
+	outFile << "Virtual TCAT 2K : "
+			<< (double) (total_instructions)/(total_num_cycles +
+					((total_page_invalidations + migration_guest_shootdown)*4000) +
+					((total_host_shootdowns)*10000) +
+					((l3_tlb_small->num_tr_misses->get_val() + l3_tlb_large->num_tr_misses->get_val())*4000))
+			<< std::endl;
+
+	outFile << "Virtual TCAT 5K : "
+			<< (double) (total_instructions)/(total_num_cycles +
+					((total_page_invalidations + migration_guest_shootdown)*10000) +
+					((total_host_shootdowns)*25000) +
+					((l3_tlb_small->num_tr_misses->get_val() + l3_tlb_large->num_tr_misses->get_val())*20000))
+			<< std::endl;
+
+	outFile << "Virtual Baseline DRAM Only IPC : "
+			<< (double) (total_instructions)/(total_num_cycles + (guest_shootdown_program*50000) +
+																((l2_tlb_misses - l3_tlb_small->num_tr_misses->get_val())*75))
+			<< std::endl;
+
+	outFile << "Virtual TCAT DRAM Only IPC : "
+			<< (double) (total_instructions)/(total_num_cycles +
+						((total_page_invalidations)*200) +
+						((l3_tlb_small->num_tr_misses->get_val() + l3_tlb_large->num_tr_misses->get_val())*200))
+			<< std::endl;
+
+	outFile << "Virtual HATRIC (50 - 50) IPC : "
+			<< (double) (total_instructions)/(total_num_cycles + (total_migration_shootdowns*25000) + (total_migration_shootdowns*50))
+			<< std::endl;
+
+	outFile << "Virtual TCAT (50 - 50) IPC : "
+			<< (double) (total_instructions)/(total_num_cycles +
+						((total_page_invalidations + (total_migration_shootdowns/2))*200) +
+						((total_migration_shootdowns)*250) +
+						((l3_tlb_small->num_tr_misses->get_val() + l3_tlb_large->num_tr_misses->get_val())*200))
+			<< std::endl;
+
+	outFile << "Virtual HATRIC (100 - 0) IPC : "
+			<< (double) (total_instructions)/(total_num_cycles + (total_migration_shootdowns*100))
+			<< std::endl;
+
+	outFile << "Virtual TCAT (100 - 50) IPC : "
+			<< (double) (total_instructions)/(total_num_cycles +
+						((total_page_invalidations)*200) +
+						((total_migration_shootdowns)*500) +
+						((l3_tlb_small->num_tr_misses->get_val() + l3_tlb_large->num_tr_misses->get_val())*200))
+			<< std::endl;
+
 
 	outFile << "----------------------------------------------------------------------\n";
 	outFile.close();
