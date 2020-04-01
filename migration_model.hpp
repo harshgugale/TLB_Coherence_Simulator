@@ -115,7 +115,6 @@ public:
 		migrated_pages[ref_itr] = page_num;
 
         ref_ptr_ = (ref_itr + 1)%num_dram_pages_;
-        ref_itr = 0;
 
 //        if (tp_ptr->global_ts > (tp_ptr->skip_instructions + tp_ptr->warmup_period))
 //        {
@@ -126,14 +125,23 @@ public:
 	bool processPage(Request * req, int &eviction_count)
 	{
 		int page_num = (req->m_addr/4096) & (0xffffff);
-		int use_core = req->m_core_id;
 
 		bool is_page_migrated = false;
-	    page_counts[page_num]+=1;
+
+		if (dram_page_location[page_num] < 0)
+			page_counts[page_num]++;
+		else
+			page_counts[page_num] = 0;
+
 	    num_entries_in_trace++;
 	    eviction_count = 0;
 
-		if ((page_counts[page_num] >= migration_threshold_) && (dram_page_location[page_num]) < 0) {
+	    //std::cout << "[MIGRATION] Got request for page num : " << std::hex << page_num << std::dec
+	    //		<< " page_num count : " << page_counts[page_num]  << std::endl;
+
+		if ((page_counts[page_num] >= migration_threshold_) && (dram_page_location[page_num] < 0)) {
+
+		    std::cout << "[MIGRATION] Migrating page : " << std::hex << page_num << std::dec << std::endl;
 
 			evict_page(page_num);
 			eviction_count++;

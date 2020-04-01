@@ -358,6 +358,18 @@ Request* TraceProcessor::generateRequest()
 				popped_migration_queue++;
 
 			migration_shootdown_queue.pop_front();
+
+			if ((global_ts - previous_shootdown_ts) > ini_penalty || req->m_core_id != previous_core_id)
+			{
+				previous_shootdown_ts = global_ts;
+				previous_core_id = req->m_core_id;
+			}
+			else
+			{
+				if (global_ts > (skip_instructions + warmup_period))
+					folded_migration_shootdowns++;
+				//delete req;
+			}
 			return req;
 		}
 

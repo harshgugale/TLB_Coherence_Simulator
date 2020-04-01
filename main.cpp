@@ -12,7 +12,7 @@
 #include "CacheSys.hpp"
 #include "ROB.hpp"
 #include "Core.hpp"
-#include "TraceProcessor.hpp"
+#include "counter.hpp"
 #include <memory>
 #include "utils.hpp"
 #include "migration_model.hpp"
@@ -28,7 +28,7 @@
 #define NUM_INITIAL_FILL 1000
 #define STRING(s) #s
 
-void print_results(std::ofstream &outFile, TraceProcessor &tp, std::string benchmark);
+void print_results(TraceProcessor &tp, std::string benchmark);
 
 std::vector<std::shared_ptr<CacheSys>> data_hier;
 std::vector<std::shared_ptr<CacheSys>> tlb_hier;
@@ -99,6 +99,8 @@ int main(int argc, char * argv[])
 			initiator_penalty = 16000;
 			victim_penalty = 3500;
 		}
+
+		tp.ini_penalty = initiator_penalty;
 	}
 
 	if (num_dram_pages == 0 || num_nvm_disk_pages == 0 || migration_threshold == 0)
@@ -122,7 +124,6 @@ int main(int argc, char * argv[])
 
 	tp.verifyOpenTraceFiles();
 
-	std::ofstream outFile;
 	//std::ofstream memFile;
 
 	//memFile.open(tp.benchname+"_evicts.out");
@@ -319,14 +320,13 @@ int main(int argc, char * argv[])
 			}
 		}
 
-		done = true;
+		uint64_t instructions_simulated = 0;
 
 		for(int i = 0; i < NUM_CORES; i++)
 		{
 			cores[i]->tick(tp.config, initiator_penalty, victim_penalty);
 
-			done = (done & cores[i]->is_done()) && (cores[i]->traceVec.size() == 0)
-					&& (tp.global_ts >= max_ts_to_simulate);
+			//done = (done & cores[i]->is_done()) && (cores[i]->traceVec.size() == 0) && (tp.global_ts >= max_ts_to_simulate);
 
 			if((cores[i]->m_clk + cores[i]->num_stall_cycles->get_val()) > max_ts_to_simulate * 10)
 			{
@@ -362,19 +362,24 @@ int main(int argc, char * argv[])
 			if(cores[i]->m_num_retired % 1000000 == 0)
 			{
 				std::cout << "[NUM_INSTR_RETIRED] Core " << i << ": " << cores[i]->m_num_retired << "\n";
-				print_results(outFile, tp, tp.benchname);
+				print_results(tp, tp.benchname);
 			}
 
 			if(cores[i]->m_clk % 1000000 == 0)
 			{
 				std::cout << "[CYCLES] Core " << i << ": " << cores[i]->m_clk << "\n";
 			}
+
+			instructions_simulated += cores[i]->instructions_retired->get_val();
 		}
+
+		if (instructions_simulated >= tp.instrument_instructions)
+			done = true;
 
 		if(done == true)
 		{
-			std::cout << "[INFO]Done is true " << std::endl;
-			std::cout << "[INFO]Migration shootdown queue size at exit is " << tp.migration_shootdown_queue.size() << std::endl;
+			std::cerr << "[INFO]Done is true " << std::endl;
+			std::cerr << "[INFO]Migration shootdown queue size at exit is " << tp.migration_shootdown_queue.size() << std::endl;
 
 			for(auto i = tp.migration_shootdown_queue.begin(); i != tp.migration_shootdown_queue.end(); i++)
 			{
@@ -383,20 +388,22 @@ int main(int argc, char * argv[])
 
 			for(int i = 0; i < NUM_CORES; i++)
 			{
-				std::cout << "Core num : " << i << ") cores[i]->is_done() " <<
+				std::cerr << "Core num : " << i << ") cores[i]->is_done() " <<
 						cores[i]->is_done() << " cores[i]->traceVec.size() " <<
 						cores[i]->traceVec.size() << " tp.global_ts " <<
 						tp.global_ts << std::endl;
 			}
 
-			print_results(outFile, tp, tp.benchname);
+			print_results(tp, tp.benchname);
 
 		}
 	}
 }
 
-void print_results(std::ofstream &outFile, TraceProcessor &tp, std::string benchmark)
+void print_results(TraceProcessor &tp, std::string benchmark)
 {
+	std::ofstream outFile;
+
 	if (tp.config == "IDEAL")
 	{
 		std::cout << ("Opening " + benchmark + "_baseline_ideal.out") << std::endl;
@@ -585,6 +592,7 @@ void print_results(std::ofstream &outFile, TraceProcessor &tp, std::string bench
 		outFile << "Total shootdowns = " << total_shootdowns << "\n";
 		outFile << "Total additions to the Migration Request Queue = " << tp.addition_to_migration_queue << "\n";
 		outFile << "Total Pops of the Migration Request Queue = " << tp.popped_migration_queue << "\n";
+		outFile << "Potential foldable migration requests = " << tp.folded_migration_shootdowns << "\n";
 
 		for (auto const& c: page_migration_model->module_counters)
 		{
@@ -631,7 +639,7 @@ void print_results(std::ofstream &outFile, TraceProcessor &tp, std::string bench
 	if(total_instructions)
 	{
 		outFile << "[L3 SMALL TLB] MPKI = " << (double) (l3_tlb_small->num_tr_misses->get_val() * 1000.0)/(total_instructions) << "\n";
-		outFile << "[L3 SMALL TLB] ATLB Hit Rate = " << (double) (l3_tlb_small->num_tr_misses->get_val() * 1000.0)/(total_instructions) << "\n";
+		outFile << "[L3 SMALL TLB] ATLB Hit Rate = " << (double) (l3_tlb_small->num_tr_misses->get_val()/l2_tlb_misses) << "\n";
 	}
 
 	for (auto const& c: l3_tlb_large->module_counters)
@@ -646,7 +654,7 @@ void print_results(std::ofstream &outFile, TraceProcessor &tp, std::string bench
 
 	if(total_num_cycles)
 	{
-		assert(l2_tlb_misses > l3_tlb_small->num_tr_misses->get_val());
+		assert(l2_tlb_misses >= l3_tlb_small->num_tr_misses->get_val());
 
 		outFile << "Native Baseline IPC : "
 				<< (double) (total_instructions)/(total_num_cycles + total_stall_cycles +
@@ -672,7 +680,7 @@ void print_results(std::ofstream &outFile, TraceProcessor &tp, std::string bench
 
 		//Virtual Stats
 
-		uint32_t virtual_stall_cycles = (total_stall_cycles*3.2);
+		uint32_t virtual_stall_cycles = (uint64_t) (total_stall_cycles*3.2);
 
 		outFile << "Virtual Baseline IPC : "
 				<< (double) (total_instructions)/(total_num_cycles + virtual_stall_cycles +
@@ -690,6 +698,13 @@ void print_results(std::ofstream &outFile, TraceProcessor &tp, std::string bench
 				<< (double) (total_instructions)/(total_num_cycles +
 							((total_page_invalidations + migration_guest_shootdown)*200) +
 							((total_host_shootdowns)*500) +
+							((l3_tlb_small->num_tr_misses->get_val() + l3_tlb_large->num_tr_misses->get_val())*200))
+				<< std::endl;
+
+		outFile << "Virtual TCAT IPC (With Lock) : "
+				<< (double) (total_instructions)/(total_num_cycles +
+							((total_page_invalidations + migration_guest_shootdown)*200) +
+							((total_host_shootdowns)*700*8) +
 							((l3_tlb_small->num_tr_misses->get_val() + l3_tlb_large->num_tr_misses->get_val())*200))
 				<< std::endl;
 

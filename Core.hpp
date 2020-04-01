@@ -16,7 +16,7 @@
 #include <deque>
 #include <list>
 #include <set>
-#include "TraceProcessor.hpp"
+#include "counter.hpp"
 
 class Core {
 private:

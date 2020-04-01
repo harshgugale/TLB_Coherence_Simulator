@@ -43,7 +43,6 @@ bool Cache::is_found(const std::vector<CacheLine>& set,
 //                               return (is_translation) ?  ((l.tag == tag) && (l.valid) &&
 //                            		   (l.is_translation == is_translation) && (l.tid == tid)) :
 //                            		   ((l.tag == tag) && (l.valid) && (l.is_translation == is_translation));
-
     							return ((l.tag == tag) && (l.valid) && (l.is_translation == is_translation));
 
                            });
@@ -61,11 +60,11 @@ bool Cache::is_partially_found(const std::vector<CacheLine>& set,
 
 	if (is_large)
 	{
-		partial_tag = ((partial_addr - m_core->m_l3_small_tlb_size - (m_core->m_l3_small_tlb_base>>6)) >> m_num_index_bits);
+		partial_tag = ((partial_addr - m_core->m_l3_small_tlb_size - ((m_core->m_l3_small_tlb_base)>>6)) >> m_num_index_bits);
 	}
 	else
 	{
-		partial_tag = ((partial_addr - (m_core->m_l3_small_tlb_base>>6)) >> m_num_index_bits);
+		partial_tag = ((partial_addr - ((m_core->m_l3_small_tlb_base)>>6)) >> m_num_index_bits);
 	}
 
 
@@ -82,7 +81,7 @@ bool Cache::is_partially_found(const std::vector<CacheLine>& set,
 
 									if((l.tag & mask_for_partial_compare) == partial_tag)
 									{
-										assert((partial_tag >> (int)log2((double)mask_for_partial_compare + 1)) == 0);
+										assert((partial_tag >> (int)log2((double)(mask_for_partial_compare) + 1)) == 0);
 										partial_match = true;
 									}
 								   //Threads share address space, so no need to check for tid if the request type is not translation
@@ -98,7 +97,17 @@ bool Cache::is_partially_found(const std::vector<CacheLine>& set,
 }
 bool Cache::is_hit(const std::vector<CacheLine> &set, const uint64_t tag, bool is_translation, uint64_t tid, unsigned int &hit_pos)
 {
-    return is_found(set, tag, is_translation, tid, hit_pos) & !set[hit_pos].lock;
+    bool val = is_found(set, tag, is_translation, tid, hit_pos);
+
+    if (val)
+    {
+    	if (set[hit_pos].lock)
+    		(*hit_but_locked)++;
+
+    	return (!set[hit_pos].lock);
+    }
+    else
+    	return false;
 }
 
 void Cache::invalidate(const uint64_t addr, uint64_t tid, bool is_translation)
@@ -209,7 +218,7 @@ void Cache::evict(uint64_t set_num, const CacheLine &line, int req_core_id)
 #if 0
 					memFile_ptr_->write((char*)&trace_entry, 1);
 #endif
-					if (!req.m_is_large && page_migration_model_->processPage(&req,eviction_count))
+					if ((!req.m_is_large) && page_migration_model_->processPage(&req,eviction_count))
 					{
 						assert(eviction_count == 1 || eviction_count == 2);
 
@@ -369,6 +378,8 @@ RequestStatus Cache::lookupAndFillCache(Request &req, unsigned int curr_latency,
     uint64_t tag = get_tag(addr);
     uint64_t index = get_index(addr);
     std::vector<CacheLine>& set = m_tagStore[index];
+
+    assert(index < m_num_sets);
 
     if(m_core_id == -1)
     {
@@ -669,7 +680,7 @@ RequestStatus Cache::lookupAndFillCache(Request &req, unsigned int curr_latency,
 
 			//std::cout << "Mem Access : " << req;
 
-			if (!req.m_is_large && page_migration_model_->processPage(&req, eviction_count))
+			if ((!req.m_is_large) && page_migration_model_->processPage(&req, eviction_count))
 			{
 
 				assert(eviction_count == 1 || eviction_count == 2);

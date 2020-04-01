@@ -21,7 +21,7 @@
 #include "CacheLine.h"
 #include "Request.hpp"
 #include "Coherence.hpp"
-#include "TraceProcessor.hpp"
+#include "counter.hpp"
 #include "migration_model.hpp"
 
 class CacheSys;
@@ -109,6 +109,7 @@ public:
     std::shared_ptr <counter>  mem_accesses;
     std::shared_ptr <counter>  compulsary_tr_misses;
     std::shared_ptr <counter>  conflict_tr_misses;
+    std::shared_ptr <counter>  hit_but_locked;
 
     std::vector <counter *> module_counters;
 
@@ -178,7 +179,7 @@ public:
         num_mshr_tr_hits = std::make_shared <counter>("MSHR Translation hits",module_counters);
         num_tr_coh_msgs = std::make_shared <counter>("Translation coherence messages",module_counters);
         mem_accesses = std::make_shared <counter>("Total DRAM Accesses",module_counters);
-
+        hit_but_locked = std::make_shared <counter>("Hit but locked",module_counters);
     }
 
     void initialize_callback();
