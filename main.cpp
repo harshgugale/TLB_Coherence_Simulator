@@ -301,7 +301,7 @@ int main(int argc, char * argv[])
 				if (tp.global_ts > (tp.skip_instructions + tp.warmup_period))
 					total_requests_from_tp++;
 
-				std::cout << *r;
+				//std::cout << *r;
 
 				assert((r != nullptr) && r->m_core_id >= 0 && r->m_core_id < NUM_CORES);
 
