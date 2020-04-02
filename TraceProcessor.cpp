@@ -305,6 +305,9 @@ Request* TraceProcessor::generateRequest()
 		tid = buf2[idx].tid;
 		unsigned int core = (tid + tid_offset) % NUM_CORES;
 
+		if ((curr_ts[idx] - global_ts) == 1)
+			global_ts++;
+
 		//Return requests for normal memory instructions
 		if(curr_ts[idx] == global_ts)
 		{
@@ -341,7 +344,7 @@ Request* TraceProcessor::generateRequest()
 				req = new Request(shootdown_va, TRANSLATION_WRITE, shootdown_victim_cores, shootdown_is_large, shootdown_ini_core);
 
 			used_up_shootdown = true;
-			std::cout << "[SHOOTDOWN_EVENT] Generating guest shootdown" << std::endl;
+			std::cout << "[SHOOTDOWN_EVENT] Generating " << std::endl;
 			std::cout << "Returning guest shootdown : " << *req;
 			return req;
 

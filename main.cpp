@@ -42,7 +42,7 @@ std::shared_ptr<Cache> llc, l3_tlb_small, l3_tlb_large;
 std::shared_ptr<migration_model> page_migration_model;
 
 uint64_t initiator_penalty = 0, victim_penalty = 0;
-
+uint64_t total_requests_from_tp = 0;
 uint64_t num_dram_pages = 0, num_nvm_disk_pages = 0, migration_threshold = 0;
 std::string page_migration_policy = "none";
 
@@ -272,6 +272,9 @@ int main(int argc, char * argv[])
 	{
 		Request *r = tp.generateRequest();
 
+		if (tp.global_ts > (tp.skip_instructions + tp.warmup_period))
+			total_requests_from_tp++;
+
 		request_queue.insert(std::make_pair(r,1));
 
 		if((r != nullptr) && r->m_core_id >=0 && r->m_core_id < NUM_CORES)
@@ -295,7 +298,10 @@ int main(int argc, char * argv[])
 			{
 				r = tp.generateRequest();
 
-				//std::cout << *r;
+				if (tp.global_ts > (tp.skip_instructions + tp.warmup_period))
+					total_requests_from_tp++;
+
+				std::cout << *r;
 
 				assert((r != nullptr) && r->m_core_id >= 0 && r->m_core_id < NUM_CORES);
 
@@ -583,7 +589,8 @@ void print_results(TraceProcessor &tp, std::string benchmark)
 	if(!tp.is_multicore)
 	{
 		outFile << "Cycles = " << total_num_cycles << "\n";
-		outFile << "Instructions = " << (total_instructions) << "\n";
+		outFile << "Instructions retired = " << (total_instructions) << "\n";
+		outFile << "Requests returned from TP = " << total_requests_from_tp << "\n";
 		if(total_num_cycles > 0)
 		{
 			outFile << "IPC = " << (double) (total_instructions)/(total_num_cycles + total_stall_cycles) << "\n";
@@ -639,7 +646,7 @@ void print_results(TraceProcessor &tp, std::string benchmark)
 	if(total_instructions)
 	{
 		outFile << "[L3 SMALL TLB] MPKI = " << (double) (l3_tlb_small->num_tr_misses->get_val() * 1000.0)/(total_instructions) << "\n";
-		outFile << "[L3 SMALL TLB] ATLB Hit Rate = " << (double) (l3_tlb_small->num_tr_misses->get_val()/l2_tlb_misses) << "\n";
+		outFile << "[L3 SMALL TLB] ATLB Hit Rate = " << (double) (1 - (l3_tlb_small->num_tr_misses->get_val()/l2_tlb_misses)) << "\n";
 	}
 
 	for (auto const& c: l3_tlb_large->module_counters)

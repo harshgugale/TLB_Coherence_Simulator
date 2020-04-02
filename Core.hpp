@@ -88,6 +88,7 @@ public:
     //Counters
 
     std::shared_ptr <counter> instructions_retired;
+    std::shared_ptr <counter> trace_vec_pops_or_instr_issued;
     std::shared_ptr <counter> num_cycles;
     std::shared_ptr <counter> num_stall_cycles;
     std::shared_ptr <counter> num_false_invalidations;
@@ -96,7 +97,6 @@ public:
     std::shared_ptr <counter> num_guest_shootdowns;
     std::shared_ptr <counter> num_host_shootdowns;
     std::shared_ptr <counter> page_invalidations;
-    std::shared_ptr <counter> tlb_accesses_during_shootdown;
 
     std::vector <counter *> module_counters;
 
@@ -115,6 +115,7 @@ public:
             tr_wr_in_progress = false;
 
             instructions_retired = std::make_shared <counter>("Instructions",module_counters);
+            trace_vec_pops_or_instr_issued = std::make_shared <counter>("Trace Vec pops/Instruction Issued",module_counters);
             num_cycles = std::make_shared <counter>("Cycles",module_counters);
             num_stall_cycles = std::make_shared <counter>("Stall Cycles",module_counters);
             num_false_invalidations = std::make_shared <counter>("Num False Invalidations",module_counters);
@@ -123,7 +124,7 @@ public:
             num_guest_shootdowns = std::make_shared <counter>("Num Guest Shootdowns",module_counters);
             num_host_shootdowns = std::make_shared <counter>("Num Host Shootdowns",module_counters);
             page_invalidations = std::make_shared <counter>("Num Page Invalidations",module_counters);
-            tlb_accesses_during_shootdown = std::make_shared <counter>("TLB accesses during shootdown",module_counters);
+
 
 //            module_counters.push_back(&instructions_retired);
 //            module_counters.push_back(&num_cycles);

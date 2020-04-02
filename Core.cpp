@@ -426,6 +426,7 @@ void Core::tick(std::string config, uint64_t initiator_penalty, uint64_t victim_
             {
                 if (m_rob->issue(req->m_is_memory_acc, req, m_clk))
                 {
+                	(*trace_vec_pops_or_instr_issued)++;
                 	traceVec.pop_front();
                 }
                 else
@@ -452,6 +453,7 @@ void Core::tick(std::string config, uint64_t initiator_penalty, uint64_t victim_
             //Issue in ROB and remove from issue queue
             if (m_rob->issue(req->m_is_memory_acc, req, m_clk))
             {
+            	(*trace_vec_pops_or_instr_issued)++;
             	traceVec.pop_front();
             }
             else
@@ -470,6 +472,7 @@ void Core::tick(std::string config, uint64_t initiator_penalty, uint64_t victim_
         {
             if (m_rob->issue(req->m_is_memory_acc, req, m_clk))
             {
+            	(*trace_vec_pops_or_instr_issued)++;
             	traceVec.pop_front();
             }
             else

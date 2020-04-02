@@ -81,11 +81,11 @@ public:
     uint32_t previous_core_id = UINT32_MAX;
     uint64_t folded_migration_shootdowns = 0;
 
-    uint64_t skip_instructions = 0; //10B //Remember to uncomment before actual runs
-    uint64_t warmup_period = 1000000000; //500M
-    uint64_t instrument_instructions = 9000000000; //5B
+    uint64_t skip_instructions = 0; //10B
+    uint64_t warmup_period = 500000000; //500M
+    uint64_t instrument_instructions = 9500000000; //5B
 
-//    uint64_t skip_instructions = 10000000000; //1B
+//    uint64_t skip_instructions = 10000000000; //10B
 //    uint64_t warmup_period = 0; //500M
 //    uint64_t instrument_instructions = 1000000; //5B
 
