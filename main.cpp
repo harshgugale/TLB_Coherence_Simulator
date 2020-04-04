@@ -57,8 +57,8 @@ int main(int argc, char * argv[])
 	TraceProcessor tp(8);
 	if (argc < num_real_args)
 	{
-		std::cout << "Program takes " << num_args << " arguments" << std::endl;
-		std::cout << "Path name of input config file" << std::endl;
+		std::cerr << "Program takes " << num_args << " arguments" << std::endl;
+		std::cerr << "Path name of input config file" << std::endl;
 		exit(0);
 	}
 
@@ -361,7 +361,7 @@ int main(int argc, char * argv[])
 						std::cout << "Core " << j << " can't issue\n";
 					}
 				}
-				std::cout << "[ERROR] Setting timeout to be true" << std::endl;
+				std::cerr << "[ERROR] Setting timeout to be true" << std::endl;
 				timeout = true;
 			}
 
@@ -436,7 +436,7 @@ void print_results(TraceProcessor &tp, std::string benchmark)
 		outFile.open(benchmark + "_hatric.out");
 	} else
 	{
-		std::cout << "Error in config";
+		std::cerr << "Error in config";
 		exit(0);
 	}
 

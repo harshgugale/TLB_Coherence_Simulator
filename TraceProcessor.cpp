@@ -71,7 +71,7 @@ void TraceProcessor::processPair(std::string name, std::string val)
     	}
     	else
     	{
-    		std::cout << "Please check config param";
+    		std::cerr << "Please check config param";
     		exit(0);
     	}
 
@@ -146,8 +146,8 @@ void TraceProcessor::verifyOpenTraceFiles()
         trace_fp[i] = fopen((char*)trace[i], "r");
         if (!trace_fp[i])
         {
-            std::cout << "[Error] Check trace file path of core " << i << std::endl;
-            std::cout << trace[i] << " does not exist" << std::endl;
+            std::cerr << "[Error] Check trace file path of core " << i << std::endl;
+            std::cerr << trace[i] << " does not exist" << std::endl;
             exit(0);
         }
         fread ((void*)&buf1[i], sizeof(trace_tlb_entry_t), 1, trace_fp[i]);
@@ -161,8 +161,8 @@ void TraceProcessor::verifyOpenTraceFiles()
         trace_fp[0] = fopen((char*)trace[0], "r");
         if (!trace_fp[0])
         {
-            std::cout << "[Error] Check trace file path" << std::endl;
-            std::cout << trace[0] << " does not exist" << std::endl;
+            std::cerr << "[Error] Check trace file path" << std::endl;
+            std::cerr << trace[0] << " does not exist" << std::endl;
             exit(0);
         }
         fread ((void*)&buf2[0], sizeof(trace_tlb_tid_entry_t), 1, trace_fp[0]);
@@ -174,8 +174,8 @@ void TraceProcessor::verifyOpenTraceFiles()
     shootdown_fp = fopen((char*) shootdown, "r");
     if(!shootdown_fp)
     {
-        std::cout << "[Error] Check shootdown file path" << std::endl;
-        std::cout << shootdown << " does not exist" << std::endl;
+        std::cerr << "[Error] Check shootdown file path" << std::endl;
+        std::cerr << shootdown << " does not exist" << std::endl;
         exit(0);
     }
 
@@ -408,7 +408,7 @@ Request* TraceProcessor::generateRequest()
 		}
 
     }
-    std::cout << "[ERROR] Returning nullptr" << std::endl;
+    std::cerr << "[ERROR] Returning nullptr" << std::endl;
     exit(0);
     return nullptr;
 }
@@ -433,7 +433,7 @@ void TraceProcessor::add_to_migration_shootdown_queue(Request * r)
 {
 	if (migration_shootdown_queue.size() > 1000)
 	{
-		std::cout << "[ERROR] migration shootdown file full";
+		std::cerr << "[ERROR] migration shootdown file full";
 		exit(0);
 	}
 

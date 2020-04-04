@@ -399,7 +399,7 @@ void Core::tick(std::string config, uint64_t initiator_penalty, uint64_t victim_
 					}
 					else
 					{
-						std::cout << "[ERROR] Request retry " << std::endl;
+						std::cerr << "[ERROR] Request retry " << std::endl;
 					}
             	}
             }
