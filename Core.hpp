@@ -101,7 +101,7 @@ public:
     std::vector <counter *> module_counters;
 
     Core(std::shared_ptr<CacheSys> cache_hier, std::shared_ptr<CacheSys> tlb_hier, std::shared_ptr<ROB> rob,
-    		uint64_t l3_small_tlb_base = 0xf00000000000, uint64_t l3_small_tlb_size = 1024 * 1024) :
+    		uint64_t l3_small_tlb_base = 0xf10000000000, uint64_t l3_small_tlb_size = 1024 * 1024) :
         m_cache_hier(cache_hier),
         m_tlb_hier(tlb_hier),
         m_rob(rob),

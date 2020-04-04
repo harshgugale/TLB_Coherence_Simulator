@@ -231,6 +231,7 @@ void Cache::evict(uint64_t set_num, const CacheLine &line, int req_core_id)
 							if (mig_req->m_core_id == -1)
 							{
 								std::cerr << "[ERROR] Invalid core id. 1";
+								mig_req->m_core_id = 0;
 							}
 
 							mig_req->is_migration_shootdown = true;
@@ -692,6 +693,7 @@ RequestStatus Cache::lookupAndFillCache(Request &req, unsigned int curr_latency,
 					if (mig_req->m_core_id == -1)
 					{
 						std::cerr << "[ERROR] Invalid core id. 1";
+						mig_req->m_core_id = 0;
 					}
 
 					mig_req->is_migration_shootdown = true;
