@@ -292,6 +292,7 @@ int main(int argc, char * argv[])
 
 		for (int i = 0; (i < (NUM_CORES*8)) && (tp.global_ts < max_ts_to_simulate); i++)
 		{
+
 			if (used_up_req == true)
 			{
 				r = tp.generateRequest();
