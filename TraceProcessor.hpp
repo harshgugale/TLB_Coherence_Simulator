@@ -83,7 +83,7 @@ public:
 
     uint64_t skip_instructions = 0; //10B
     uint64_t warmup_period = 500000000; //500M
-    uint64_t instrument_instructions = 9500000000; //5B
+    uint64_t instrument_instructions = 5000000000; //5B
 
 //    uint64_t skip_instructions = 10000000000; //10B
 //    uint64_t warmup_period = 0; //500M

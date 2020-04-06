@@ -263,6 +263,9 @@ void Core::tick(std::string config, uint64_t initiator_penalty, uint64_t victim_
 //        		  << " can issue " << can_issue << " is_shootdown_guest "
 //				  << is_stall_guest_shootdown << std::endl;
 
+//        if (!can_issue && (m_rob->request_queue.size() > 10000))
+//        	std::cout << "Core : " << m_core_id << " can_issue " << can_issue << " stall " << stall << " req " << req << "\n";
+
         if(can_issue && !stall)
         {
         	//std::cout << "inside core " << m_core_id << req << std::endl;
@@ -419,6 +422,14 @@ void Core::tick(std::string config, uint64_t initiator_penalty, uint64_t victim_
         if(req->m_is_memory_acc && (req->m_type != TRANSLATION_WRITE))
         {
             req->update_request_type_from_core(TRANSLATION_READ);
+
+#ifdef DEADLOCK_DEBUG
+if(req->m_addr == 0x2992c60)
+{
+    std::cout << "[TRANSLATION REQUEST] req " << *req;
+}
+#endif
+
             RequestStatus tlb_req_status = m_tlb_hier->lookupAndFillCache(*req);
 
             req->update_request_type_from_core(act_req_kind);
@@ -426,6 +437,10 @@ void Core::tick(std::string config, uint64_t initiator_penalty, uint64_t victim_
             {
                 if (m_rob->issue(req->m_is_memory_acc, req, m_clk))
                 {
+                	if (req->m_type == TRANSLATION_READ)
+                	{
+                		std::cout << "Core : " << m_core_id << " Inserted Translation Read into ROB 1\n";
+                	}
                 	(*trace_vec_pops_or_instr_issued)++;
                 	traceVec.pop_front();
                 }
@@ -454,24 +469,36 @@ void Core::tick(std::string config, uint64_t initiator_penalty, uint64_t victim_
             if (m_rob->issue(req->m_is_memory_acc, req, m_clk))
             {
             	(*trace_vec_pops_or_instr_issued)++;
+
+            	if (req->m_type == TRANSLATION_READ)
+            	{
+            		std::cout << "Core : " << m_core_id << " Inserted Translation Read into ROB 2\n";
+            	}
+
             	traceVec.pop_front();
+
+                m_rob->peek(tr_coh_issue_ptr);
+                std::cout << "Translation write done? " << m_rob->m_window[tr_coh_issue_ptr].done << "\n";
+
+                //Mark as translation done in is_request_ready queue
+                //Ready for dispatch to data hierarchy
+                m_rob->mem_mark_translation_done(*req);
             }
             else
             {
             	std::cout << "[ROB] Did not issue request " << *req << std::endl;
             }
 
-            //Mark as translation done in is_request_ready queue
-            //Ready for dispatch to data hierarchy
-            m_rob->mem_mark_translation_done(*req);
-
-            m_rob->peek(tr_coh_issue_ptr);
-            std::cout << "Translation write done? " << m_rob->m_window[tr_coh_issue_ptr].done << "\n";
         }
         else
         {
             if (m_rob->issue(req->m_is_memory_acc, req, m_clk))
             {
+            	if (req->m_type == TRANSLATION_READ)
+            	{
+            		std::cout << "Core : " << m_core_id << " Inserted Translation Read into ROB 3\n";
+            	}
+
             	(*trace_vec_pops_or_instr_issued)++;
             	traceVec.pop_front();
             }

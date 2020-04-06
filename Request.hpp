@@ -73,6 +73,7 @@ public:
     	out << "is_memory_acc : " << r.m_is_memory_acc << std::hex <<
     			", Addr: " << r.m_addr << std::dec <<
 				", kind: " << r.m_type <<
+				", is_translation: " << r.m_is_translation <<
 				", tid: " << r.m_tid <<
 				", is_large: " << r.m_is_large <<
 				", core: " << r.m_core_id <<
@@ -128,7 +129,7 @@ struct RequestHasher {
 		size_t res = 42;
 		res = res * 31 + hash<uint64_t>() (r.m_addr);
 		res = res * 31 + hash<unsigned int>() (r.m_type);
-	       	res = res * 31 + hash<uint64_t>() (r.m_tid);
+	    res = res * 31 + hash<uint32_t>() (r.m_tid);
 		res = res * 31 + hash<bool>() (r.m_is_large);	
 		return res;
 	}

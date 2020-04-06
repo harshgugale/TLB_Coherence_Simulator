@@ -15,7 +15,7 @@ bool ROB::issue(bool is_memory_access, Request *r, uint64_t clk)
     //Could not issue
     if(m_num_waiting_instr >= m_window_size)
     {
-    	std::cout << "ROb full";
+    	std::cout << "ROB full";
     	return false;
     }
     
@@ -34,6 +34,11 @@ bool ROB::issue(bool is_memory_access, Request *r, uint64_t clk)
             r->update_request_type_from_core(TRANSLATION_READ);
         }
         request_queue.push_back(*r);
+
+        if (request_queue.size() > 9000)
+        	std::cout << "Core " << r->m_core_id << " Request queue size : " << request_queue.size()
+			<< " m_num_waiting_instr " << m_num_waiting_instr << "\n";
+
         auto req_ready_iter = is_request_ready.find(*r);
         if(req_ready_iter != is_request_ready.end())
         {
@@ -51,6 +56,7 @@ bool ROB::issue(bool is_memory_access, Request *r, uint64_t clk)
     }
 
     m_issue_ptr = (m_issue_ptr + 1) % m_window_size;
+    //std::cout << "Incrementing m_num_waiting_instr\n";
     m_num_waiting_instr++;
 
     return true;
@@ -83,6 +89,7 @@ unsigned int ROB::retire(uint64_t clk)
 	    delete m_window[m_commit_ptr].req;
         m_window[m_commit_ptr].req = nullptr;
         m_commit_ptr = (m_commit_ptr + 1) % m_window_size;
+        //std::cout << "Decrementing m_num_waiting_instr\n";
         m_num_waiting_instr--;
         num_retired++;
     }

@@ -201,8 +201,6 @@ int main(int argc, char * argv[])
 
 		cores[i]->add_traceprocessor(&tp);
 
-		std::cout << "get TP PTR " << cores[i]->instructions_retired->get_tp_ptr() << "\n";
-
 		ll_interface_complete = cores[i]->interfaceHier(ll_interface_complete);
 	}
 
@@ -292,11 +290,13 @@ int main(int argc, char * argv[])
 	while(!done && !timeout)
 	{
 
-		for (int i = 0; (i < NUM_CORES) && (tp.global_ts < max_ts_to_simulate); i++)
+		for (int i = 0; (i < (NUM_CORES*8)) && (tp.global_ts < max_ts_to_simulate); i++)
 		{
 			if (used_up_req == true)
 			{
 				r = tp.generateRequest();
+
+				assert(r->m_addr < cores[i]->m_l3_small_tlb_base);
 
 				if (tp.global_ts > (tp.skip_instructions + tp.warmup_period))
 					total_requests_from_tp++;
@@ -464,6 +464,7 @@ void print_results(TraceProcessor &tp, std::string benchmark)
 	outFile << "\nSimulator Config " << tp.config;
 	outFile << "\nInitiator penalty " << initiator_penalty;
 	outFile << "\nVictim penalty : " << victim_penalty;
+	outFile << "\nGLobal TS - Skip Instructions : " << (tp.global_ts - tp.skip_instructions);
 	outFile << "\nMax TS to Simulate : " << tp.warmup_period + tp.skip_instructions + tp.instrument_instructions;
 	outFile << "\nSkipped instructions : " << tp.skip_instructions;
 	outFile << "\nNum DRAM pages : " << num_dram_pages;
@@ -581,6 +582,9 @@ void print_results(TraceProcessor &tp, std::string benchmark)
 
 	uint64_t migration_guest_shootdown = (total_host_shootdowns/3);
 	uint64_t guest_shootdown_program = (total_guest_shootdowns - migration_guest_shootdown);
+
+	if (guest_shootdown_program < 0) guest_shootdown_program = 0;
+
 	uint64_t total_migration_shootdowns = migration_guest_shootdown + total_host_shootdowns;
 	assert(guest_shootdown_program >= 0);
 

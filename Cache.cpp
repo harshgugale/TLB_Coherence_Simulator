@@ -203,16 +203,10 @@ void Cache::evict(uint64_t set_num, const CacheLine &line, int req_core_id)
             else
             {
 				//----Check for migration in lower disk/NVM
-				if (m_cache_sys->is_last_level(m_cache_level) && !m_cache_sys->get_is_translation_hier())
+				if (m_cache_sys->is_last_level(m_cache_level) && !m_cache_sys->get_is_translation_hier() && (req.m_addr <  m_core->m_l3_small_tlb_base))
 				{
 					assert(m_core_id == -1);
 
-					trace_tlb_tid_entry_t trace_entry;
-					trace_entry.va        = (uint64_t) req.m_addr;
-					trace_entry.ts        = (uint64_t) 0;
-					trace_entry.write     = !req.m_is_read;
-					trace_entry.large     = req.m_is_large;
-					trace_entry.tid       = (uint64_t) req.m_tid;
 					int eviction_count    = 0;
 
 #if 0
@@ -369,7 +363,7 @@ RequestStatus Cache::lookupAndFillCache(Request &req, unsigned int curr_latency,
     }
 
     #ifdef DEADLOCK_DEBUG
-    if(req.m_addr == 0x0)
+    if(req.m_addr == 0x2992c60)
     {
         std::cout << "[LOOKUPANDFILL] At clk = " << m_core->m_clk << ", in hier = " << m_cache_sys->get_is_translation_hier() << ", in level = " << m_cache_level << ", in core = " << m_core_id << ", request = " << std::hex << req << std::dec;
     }
@@ -396,7 +390,7 @@ RequestStatus Cache::lookupAndFillCache(Request &req, unsigned int curr_latency,
     if(is_hit(set, tag, is_translation, tid, hit_pos))
     {
         #ifdef DEADLOCK_DEBUG
-        if(req.m_addr == 0x0)
+        if(req.m_addr == 0x2992c60)
         {
             std::cout << "[LOOKUPANDFILL_HIT] At clk = " << m_core->m_clk << ", in hier = " << m_cache_sys->get_is_translation_hier() << ", in level = " << m_cache_level << ", in core = " << m_core_id << ", request = " << std::hex << req << std::dec;
         }
@@ -487,8 +481,22 @@ RequestStatus Cache::lookupAndFillCache(Request &req, unsigned int curr_latency,
 
         m_cache_sys->m_hit_list.insert(std::make_pair(deadline, r));
 
+#ifdef DEADLOCK_DEBUG
+if(req.m_addr == 0x2992c60)
+{
+    std::cout << "[LOOKUPANDFILL_WRITEBACK] At clk = " << m_core->m_clk << ", in hier = " << m_cache_sys->get_is_translation_hier() << ", in level = " << m_cache_level << ", in core = " << m_core_id << ", request = " << std::hex << req << std::dec;
+}
+#endif
+
         return REQUEST_MISS;
     }
+
+#ifdef DEADLOCK_DEBUG
+if(req.m_addr == 0x2992c60)
+{
+    std::cout << "Here 1" << std::endl;
+}
+#endif
 
     assert(txn_kind != TRANSLATION_WRITEBACK);
     assert(txn_kind != DATA_WRITEBACK);
@@ -502,7 +510,15 @@ RequestStatus Cache::lookupAndFillCache(Request &req, unsigned int curr_latency,
 
     if(mshr_iter != m_mshr_addr.end())
     {
+
         bool found_req = (m_mshr_entries.find(req) != m_mshr_entries.end());
+
+#ifdef DEADLOCK_DEBUG
+if(req.m_addr == 0x2992c60)
+{
+    std::cout << "Here 2 Found Req : " << found_req << std::endl;
+}
+#endif
 
         if(req.m_type == TRANSLATION_WRITE || req.m_type == DATA_WRITE)
         {
@@ -618,7 +634,7 @@ RequestStatus Cache::lookupAndFillCache(Request &req, unsigned int curr_latency,
 		(*num_data_accesses) += (!is_translation);
 
         #ifdef DEADLOCK_DEBUG
-        if(req.m_addr == 0x0)
+        if(req.m_addr == 0x2992c60)
         {
             std::cout << "[LOOKUPANDFILL_MSHR_HIT] At clk = " << m_core->m_clk << ", in hier = " << m_cache_sys->get_is_translation_hier() << ", in level = " << m_cache_level << ", in core = " << m_core_id << ", request = " << std::hex << req << std::dec;
         }
@@ -628,6 +644,14 @@ RequestStatus Cache::lookupAndFillCache(Request &req, unsigned int curr_latency,
     }
     else if(m_mshr_entries.size() < mshr_size)
     {
+
+#ifdef DEADLOCK_DEBUG
+if(req.m_addr == 0x2992c60)
+{
+    std::cout << "Here 3" << std::endl;
+}
+#endif
+
         QueueEntry *queue_entry = new QueueEntry();
 
         if(req.m_type == TRANSLATION_WRITE || req.m_type == DATA_WRITE)
@@ -663,16 +687,10 @@ RequestStatus Cache::lookupAndFillCache(Request &req, unsigned int curr_latency,
 		(*num_data_accesses) += (!is_translation);
 
 		//----Check for migration in lower disk/NVM
-		if (m_cache_sys->is_last_level(m_cache_level) && !is_translation && !m_cache_sys->get_is_translation_hier())
+		if (m_cache_sys->is_last_level(m_cache_level) && !m_cache_sys->get_is_translation_hier()  && (req.m_addr <  m_core->m_l3_small_tlb_base))
 		{
 			assert(m_core_id == -1);
 
-			trace_tlb_tid_entry_t trace_entry;
-			trace_entry.va        = (uint64_t) req.m_addr;
-			trace_entry.ts        = (uint64_t) 0;
-			trace_entry.write     = !req.m_is_read;
-			trace_entry.large     = req.m_is_large;
-			trace_entry.tid       = (uint64_t) req.m_tid;
 			int eviction_count	  = 0;
 #if 0
 					memFile_ptr_->write((char*)&trace_entry, 1);
@@ -726,7 +744,7 @@ RequestStatus Cache::lookupAndFillCache(Request &req, unsigned int curr_latency,
         }
 
         #ifdef DEADLOCK_DEBUG
-        if(req.m_addr == 0x0)
+        if(req.m_addr == 0x2992c60)
         {
             std::cout << "[LOOKUPANDFILL_MISS] At clk = " << m_core->m_clk << ", in hier = " << m_cache_sys->get_is_translation_hier() << ", in level = " << m_cache_level << ", in core = " << m_core_id << ", request = " << std::hex << req << std::dec;
         }
@@ -735,6 +753,12 @@ RequestStatus Cache::lookupAndFillCache(Request &req, unsigned int curr_latency,
     }
     else
     {
+#ifdef DEADLOCK_DEBUG
+if(req.m_addr == 0x2992c60)
+{
+    std::cout << "Here 4" << std::endl;
+}
+#endif
         //MSHR full
         return REQUEST_RETRY;
     }
@@ -744,19 +768,74 @@ RequestStatus Cache::lookupAndFillCache(Request &req, unsigned int curr_latency,
     if(!m_cache_sys->is_last_level(m_cache_level) && !mshr_hit)
     {
         std::shared_ptr<Cache> lower_cache = find_lower_cache_in_core(addr, is_translation, is_large);
+
+#ifdef DEADLOCK_DEBUG
+if(req.m_addr == 0x2992c60)
+{
+    std::cout << "[LOWER CACHE] Found level : " << lower_cache->m_cache_level << " At clk = " << m_core->m_clk << ", in hier = " << m_cache_sys->get_is_translation_hier() << ", in level = " << m_cache_level << ", in core = " << m_core_id << ", request = " << std::hex << req << std::dec;
+}
+#endif
+
         if(lower_cache != nullptr)
         {
             CacheType lower_cache_type = lower_cache->get_cache_type();
             bool is_tr_to_dat_boundary = (m_cache_type == TRANSLATION_ONLY) && (lower_cache_type == DATA_AND_TRANSLATION);
+
+#ifdef DEADLOCK_DEBUG
+if(req.m_addr == 0x2992c60)
+{
+    std::cout << "[LOWER CACHE != NULLPTR] is_tr_to_dat_boundary " << is_tr_to_dat_boundary << " At clk = " << m_core->m_clk << ", in hier = " << m_cache_sys->get_is_translation_hier() << ", in level = " << m_cache_level << ", in core = " << m_core_id << ", request = " << std::hex << req << std::dec;
+}
+#endif
             //TODO: YMARATHE: eliminate this copy in all cases
             if(is_tr_to_dat_boundary)
             {
                 Request req_copy(m_core->getL3TLBAddr(addr, txn_kind, tid, is_large), req.m_type, req.m_tid, req.m_is_large, req.m_core_id);
-                lower_cache->lookupAndFillCache(req_copy, curr_latency + m_latency_cycles);
+                RequestStatus val = lower_cache->lookupAndFillCache(req_copy, curr_latency + m_latency_cycles);
+
+                if (val == REQUEST_RETRY)
+                {
+                	auto it = m_mshr_entries.find(req);
+                	assert(it != m_mshr_entries.end());
+
+                	assert(m_mshr_addr.find(addr) != m_mshr_addr.end());
+
+                    m_mshr_addr[addr].remove(it->second);
+
+                    if(m_mshr_addr[addr].size() == 0)
+                    {
+                        m_mshr_addr.erase(addr);
+                    }
+
+                	delete(it->second);
+                    m_mshr_entries.erase(it);
+
+                	return REQUEST_RETRY;
+                }
             }
             else
             {
-                lower_cache->lookupAndFillCache(req, curr_latency + m_latency_cycles);
+            	RequestStatus val = lower_cache->lookupAndFillCache(req, curr_latency + m_latency_cycles);
+
+                if (val == REQUEST_RETRY)
+                {
+                	auto it = m_mshr_entries.find(req);
+                	assert(it != m_mshr_entries.end());
+
+                	assert(m_mshr_addr.find(addr) != m_mshr_addr.end());
+
+                    m_mshr_addr[addr].remove(it->second);
+
+                    if(m_mshr_addr[addr].size() == 0)
+                    {
+                        m_mshr_addr.erase(addr);
+                    }
+
+                	delete(it->second);
+                    m_mshr_entries.erase(it);
+
+                	return REQUEST_RETRY;
+                }
             }
         }
     }
@@ -791,7 +870,27 @@ RequestStatus Cache::lookupAndFillCache(Request &req, unsigned int curr_latency,
         std::shared_ptr<Cache> lower_cache = find_lower_cache_in_core(addr, is_translation, is_large);
         if(lower_cache != nullptr)
         {
-            lower_cache->lookupAndFillCache(req, curr_latency + m_latency_cycles);
+        	RequestStatus val = lower_cache->lookupAndFillCache(req, curr_latency + m_latency_cycles);
+
+            if (val == REQUEST_RETRY)
+            {
+            	auto it = m_mshr_entries.find(req);
+            	assert(it != m_mshr_entries.end());
+
+            	assert(m_mshr_addr.find(addr) != m_mshr_addr.end());
+
+                m_mshr_addr[addr].remove(it->second);
+
+                if(m_mshr_addr[addr].size() == 0)
+                {
+                    m_mshr_addr.erase(addr);
+                }
+
+            	delete(it->second);
+                m_mshr_entries.erase(it);
+
+            	return REQUEST_RETRY;
+            }
         }
     }
     
@@ -848,7 +947,7 @@ void Cache::release_lock(std::shared_ptr<Request> r)
     auto it = m_mshr_entries.find(*r);
 
     #ifdef DEADLOCK_DEBUG
-    if(r->m_addr == 0x0)
+    if(r->m_addr == 0x2992c60)
     {
         std::cout << "[RELEASE_LOCK] At clk = " << m_core->m_clk << ", in hier = " << m_cache_sys->get_is_translation_hier() << ", in level = " << m_cache_level << ", in core = " << m_core_id << ", request = " << std::hex << (*r) << std::dec;
     }
@@ -857,7 +956,7 @@ void Cache::release_lock(std::shared_ptr<Request> r)
     if(it != m_mshr_entries.end())
     {
         #ifdef DEADLOCK_DEBUG
-        if(r->m_addr == 0x0)
+        if(r->m_addr == 0x2992c60)
         {
             std::cout << "[RELEASE_LOCK_MSHR] At clk = " << m_core->m_clk << ", in hier = " << m_cache_sys->get_is_translation_hier() << ", in level = " << m_cache_level << ", in core = " << m_core_id << ", request = " << std::hex << (*r) << std::dec;
         }
@@ -927,7 +1026,7 @@ void Cache::release_lock(std::shared_ptr<Request> r)
     if(it != m_wb_entries.end())
     {
         #ifdef DEADLOCK_DEBUG
-        if(r->m_addr == 0x0)
+        if(r->m_addr == 0x2992c60)
         {
             std::cout << "[RELEASE_LOCK_WB] At clk = " << m_core->m_clk << ", in hier = " << m_cache_sys->get_is_translation_hier() << ", in level = " << m_cache_level << ", in core = " << m_core_id << ", request = " << std::hex << (*r) << std::dec;
         }
@@ -990,7 +1089,7 @@ void Cache::release_lock(std::shared_ptr<Request> r)
     if(m_cache_level == 1 && m_cache_type == DATA_ONLY)
     {
         #ifdef DEADLOCK_DEBUG
-        if(r->m_addr == 0x0)
+        if(r->m_addr == 0x2992c60)
         {
             std::cout << "[RELEASE_LOCK_MEM_DONE] At clk = " << m_core->m_clk << ", in hier = " << m_cache_sys->get_is_translation_hier() << ", in level = " << m_cache_level << ", in core = " << m_core_id << ", request = " << std::hex << (*r) << std::dec;
         }
@@ -1002,7 +1101,7 @@ void Cache::release_lock(std::shared_ptr<Request> r)
     if(m_cache_level == 1 && m_cache_type == TRANSLATION_ONLY && r->is_translation_request())
     {
         #ifdef DEADLOCK_DEBUG
-        if(r->m_addr == 0x0)
+        if(r->m_addr == 0x2992c60)
         {
             std::cout << "[RELEASE_LOCK_MEM_TR_DONE] At clk = " << m_core->m_clk << ", in hier = " << m_cache_sys->get_is_translation_hier() << ", in level = " << m_cache_level << ", in core = " << m_core_id << ", request = " << std::hex << (*r) << std::dec;
         }
