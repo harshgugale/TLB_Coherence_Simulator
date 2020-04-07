@@ -196,10 +196,27 @@ void Core::tick(std::string config, uint64_t initiator_penalty, uint64_t victim_
 			{
 				if (tlb_shootdown_addr != actual_shootdown_identifier)
 				{
+					//Invalidate stale cachelines from data cache
+					if (!tlb_shootdown_is_large)
+					{
+						for (int j = 0; j < 4096; j+=64)
+						{
+							m_cache_hier->clflush((((tlb_shootdown_addr>>12)<<12) + j), tlb_shootdown_tid, tlb_shootdown_is_large);
+						}
+					}
 					//Invalidate from other cores
 					for(int i = 0; i < m_other_cores.size(); i++)
 					{
 						m_other_cores[i]->tlb_invalidate(tlb_shootdown_addr, tlb_shootdown_tid, tlb_shootdown_is_large);
+
+						//Invalidate stale cachelines from other data caches
+						if (!tlb_shootdown_is_large)
+						{
+							for (int j = 0; j < 4096; j+=64)
+							{
+								m_other_cores[i]->m_cache_hier->clflush((((tlb_shootdown_addr>>12)<<12) + j), tlb_shootdown_tid, tlb_shootdown_is_large);
+							}
+						}
 					}
 				}
 				stall = false;
@@ -263,7 +280,7 @@ void Core::tick(std::string config, uint64_t initiator_penalty, uint64_t victim_
 //        		  << " can issue " << can_issue << " is_shootdown_guest "
 //				  << is_stall_guest_shootdown << std::endl;
 
-//        if (!can_issue && (m_rob->request_queue.size() > 10000))
+//        if (m_rob->request_queue.size() > 10000)
 //        	std::cout << "Core : " << m_core_id << " can_issue " << can_issue << " stall " << stall << " req " << req << "\n";
 
         if(can_issue && !stall)

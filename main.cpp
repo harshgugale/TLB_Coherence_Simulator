@@ -297,7 +297,7 @@ int main(int argc, char * argv[])
 			{
 				r = tp.generateRequest();
 
-				assert(r->m_addr < cores[i]->m_l3_small_tlb_base);
+				//assert(r->m_addr < cores[i]->m_l3_small_tlb_base);
 
 				if (tp.global_ts > (tp.skip_instructions + tp.warmup_period))
 					total_requests_from_tp++;

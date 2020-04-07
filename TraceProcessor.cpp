@@ -308,8 +308,20 @@ Request* TraceProcessor::generateRequest()
 		if ((curr_ts[idx] - global_ts) == 1)
 			global_ts++;
 
+		Request * req = nullptr;
+		std::deque<Request *>::iterator it = migration_shootdown_queue.end();
+
+		for (auto i = migration_shootdown_queue.begin(); i != migration_shootdown_queue.end(); i++)
+		{
+			if ((((*i)->m_addr)>>12) == (va>>12))
+			{
+				it = i;
+				break;
+			}
+		}
+
 		//Return requests for normal memory instructions
-		if(curr_ts[idx] == global_ts)
+		if(curr_ts[idx] == global_ts && it == migration_shootdown_queue.end())
 		{
 			//Threads switch about every context switch interval
 			//uint64_t tid = (idx + tid_offset) % NUM_CORES;
@@ -353,14 +365,27 @@ Request* TraceProcessor::generateRequest()
 		//First check if there are any migration induced shootdowns pending
 		if (migration_shootdown_queue.size() > 0)
 		{
+			Request * req = nullptr;
+
 			std::cout << "[SHOOTDOWN_EVENT] Generating migration shootdown" << std::endl;
-			Request * req = migration_shootdown_queue.front();
+
+			if (it != migration_shootdown_queue.end())
+			{
+				req = (*it);
+				migration_shootdown_queue.erase(it);
+			}
+			else
+			{
+				req = migration_shootdown_queue.front();
+				migration_shootdown_queue.pop_front();
+			}
+
 			std::cout << "Returning migration shootdown : " << *req;
 
 			if (global_ts > (skip_instructions + warmup_period))
 				popped_migration_queue++;
 
-			migration_shootdown_queue.pop_front();
+
 
 			if ((global_ts - previous_shootdown_ts) > ini_penalty || req->m_core_id != previous_core_id)
 			{

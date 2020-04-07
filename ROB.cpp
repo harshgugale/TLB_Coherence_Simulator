@@ -35,9 +35,9 @@ bool ROB::issue(bool is_memory_access, Request *r, uint64_t clk)
         }
         request_queue.push_back(*r);
 
-        if (request_queue.size() > 9000)
-        	std::cout << "Core " << r->m_core_id << " Request queue size : " << request_queue.size()
-			<< " m_num_waiting_instr " << m_num_waiting_instr << "\n";
+//        if (request_queue.size() > 9000)
+//        	std::cout << "Core " << r->m_core_id << " Request queue size : " << request_queue.size()
+//			<< " m_num_waiting_instr " << m_num_waiting_instr << "\n";
 
         auto req_ready_iter = is_request_ready.find(*r);
         if(req_ready_iter != is_request_ready.end())
