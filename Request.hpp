@@ -36,6 +36,7 @@ public:
     bool m_is_memory_acc;
     bool is_migration_shootdown = false;
     bool is_guest_shootdown = true;
+    bool is_nvm_access = false;
     std::function<void(std::shared_ptr<Request>)> m_callback;
     
     

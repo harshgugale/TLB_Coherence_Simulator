@@ -423,7 +423,7 @@ Request* TraceProcessor::generateRequest()
 		}
 		else
 		{
-			std::cout << "Why is it going here? curr_ts[idx] " << curr_ts[idx] << " global_ts " << global_ts << std::endl;
+			std::cerr << "Why is it going here? curr_ts[idx] " << curr_ts[idx] << " global_ts " << global_ts << std::endl;
 			exit(0);
 		}
 

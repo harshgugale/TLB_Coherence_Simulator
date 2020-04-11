@@ -68,6 +68,7 @@ private:
 public:
     uint64_t m_l3_small_tlb_base = 0x0;
     uint64_t m_l3_small_tlb_size = 16 * 1024 * 1024;
+    uint64_t deadlock_count = 0;
     bool stall = false;
     bool tr_wr_in_progress = false;
     std::shared_ptr<ROB> m_rob;

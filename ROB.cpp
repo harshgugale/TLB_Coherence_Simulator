@@ -35,8 +35,7 @@ bool ROB::issue(bool is_memory_access, Request *r, uint64_t clk)
         }
         request_queue.push_back(*r);
 
-//        if (request_queue.size() > 9000)
-//        	std::cout << "Core " << r->m_core_id << " Request queue size : " << request_queue.size()
+//        std::cout << "Core " << r->m_core_id << " Request queue size : " << request_queue.size()
 //			<< " m_num_waiting_instr " << m_num_waiting_instr << "\n";
 
         auto req_ready_iter = is_request_ready.find(*r);
@@ -74,13 +73,18 @@ unsigned int ROB::retire(uint64_t clk)
     while(
     	m_window[m_commit_ptr].valid &&
     	(
-    			(m_window[m_commit_ptr].done) || ((m_window[m_commit_ptr].clk + 394) < clk) ||
+    			(m_window[m_commit_ptr].done) ||
+				//((m_window[m_commit_ptr].clk + 394) < clk) ||
 				(
 						(m_window[m_commit_ptr].clk < clk) && (!m_window[m_commit_ptr].is_memory_access)
 				)
 		) &&
 		(num_retired < m_retire_width))
     {
+//    	if (m_window[m_commit_ptr].done
+//    			&& (!(m_window[m_commit_ptr].clk < clk) || (m_window[m_commit_ptr].is_memory_access)))
+//    		std::cout << "[ROB] Request retired without ready signal | cycle_cnt : " << (clk - m_window[m_commit_ptr].clk) << std::endl;
+
 
     	//std::cout << "Retiring " << m_window[m_commit_ptr].req << std::endl;
 
@@ -143,12 +147,12 @@ void ROB::printContents()
     for(int i = 0; i < m_window_size; i++)
     {
     	if (i == m_commit_ptr)
-    		std::cout << "Commit_ptr";
+    		std::cerr << "Commit_ptr";
     	if (i == m_issue_ptr)
-    		std::cout << "Issue_ptr";
-        std::cout << m_window[i];
+    		std::cerr << "Issue_ptr";
+        std::cerr << m_window[i];
     }
-    std::cout << "---------------------------------" << std::endl;
+    std::cerr << "---------------------------------" << std::endl;
 }
 
 bool ROB::can_issue()

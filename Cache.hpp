@@ -110,6 +110,8 @@ public:
     std::shared_ptr <counter>  compulsary_tr_misses;
     std::shared_ptr <counter>  conflict_tr_misses;
     std::shared_ptr <counter>  hit_but_locked;
+    std::shared_ptr <counter>  nvm_access;
+    std::shared_ptr <counter>  dram_access;
 
     std::vector <counter *> module_counters;
 
@@ -180,6 +182,8 @@ public:
         num_tr_coh_msgs = std::make_shared <counter>("Translation coherence messages",module_counters);
         mem_accesses = std::make_shared <counter>("Total DRAM Accesses",module_counters);
         hit_but_locked = std::make_shared <counter>("Hit but locked",module_counters);
+        nvm_access = std::make_shared <counter>("NVM Access",module_counters);
+        dram_access =  std::make_shared <counter>("DRAM Access",module_counters);
     }
 
     void initialize_callback();

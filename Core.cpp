@@ -265,9 +265,31 @@ void Core::tick(std::string config, uint64_t initiator_penalty, uint64_t victim_
     if(!stall)
     {
     	int instr_retired = m_rob->retire(m_clk);
+
+    	if (instr_retired == 0 && !m_rob->is_empty())
+    	{
+    		deadlock_count++;
+    	}
+    	else
+    	{
+    		deadlock_count = 0;
+    	}
+
         m_num_retired += instr_retired;
         (*instructions_retired)+=instr_retired;
     }
+
+    if (deadlock_count > 10000)
+    {
+    	m_rob->printContents();
+    }
+
+    if (deadlock_count > 10100)
+	{
+    	std::cerr << "[ERROR] Deadlock end - Instr not retired - at m_clk : " << m_clk << " for core : " << m_core_id << std::endl;
+    	exit(0);
+	}
+
 
     if(m_rob->request_queue.size() > 0)
     {
@@ -280,8 +302,15 @@ void Core::tick(std::string config, uint64_t initiator_penalty, uint64_t victim_
 //        		  << " can issue " << can_issue << " is_shootdown_guest "
 //				  << is_stall_guest_shootdown << std::endl;
 
-//        if (m_rob->request_queue.size() > 10000)
-//        	std::cout << "Core : " << m_core_id << " can_issue " << can_issue << " stall " << stall << " req " << req << "\n";
+        if (m_rob->request_queue.size() > 1000000)
+        	std::cerr << "[REQ_QUEUE] Core : " << m_core_id << " can_issue " << can_issue << " stall " << stall << " req " << req << "\n";
+
+        if (m_rob->request_queue.size() > 1001000)
+        {
+        	m_rob->printContents();
+        	std::cerr << "[ERROR] Deadlock end - RQ not ready - at m_clk : " << m_clk << " for core : " << m_core_id << std::endl;
+        	exit(0);
+        }
 
         if(can_issue && !stall)
         {
@@ -345,7 +374,7 @@ void Core::tick(std::string config, uint64_t initiator_penalty, uint64_t victim_
 					tlb_shootdown_tid = req.m_tid;
 					tlb_shootdown_is_large = req.m_is_large;
 
-					if (config == "IDEAL" || (tlb_shootdown_addr != actual_shootdown_identifier
+					if ((tlb_shootdown_addr != actual_shootdown_identifier
 							&& (!req.is_migration_shootdown)))
 					{
 						std::cout << "Incrementing page invalidations for : " << req;
@@ -364,12 +393,18 @@ void Core::tick(std::string config, uint64_t initiator_penalty, uint64_t victim_
 
 						if (stall)
 						{
-							tlb_shootdown_penalty+=initiator_penalty;
+							if (config == "IDEAL")
+								tlb_shootdown_penalty = 0;
+							else
+								tlb_shootdown_penalty+=initiator_penalty;
 						}
 						else
 						{
 							stall = true;
-							tlb_shootdown_penalty = initiator_penalty;
+							if (config == "IDEAL")
+								tlb_shootdown_penalty = 0;
+							else
+								tlb_shootdown_penalty = initiator_penalty;
 							num_stall_cycles_per_shootdown = 0;
 						}
 

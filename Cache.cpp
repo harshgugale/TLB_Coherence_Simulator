@@ -851,9 +851,15 @@ if(req.m_addr == 0x2992c60)
 
         uint64_t deadline = 0;
         if (!page_migration_model_->is_page_in_nvm(&req))
+        {
         	deadline = m_cache_sys->m_clk + curr_latency + m_cache_sys->m_memory_latency;
+        	(*dram_access)++;
+        }
         else
-        	deadline = m_cache_sys->m_clk + curr_latency + 800;
+        {
+        	deadline = m_cache_sys->m_clk + curr_latency + (2*m_cache_sys->m_memory_latency);
+        	(*nvm_access)++;
+        }
         
         //If element already exists in the list, move deadline.
         while(m_cache_sys->m_wait_list.find(deadline) != m_cache_sys->m_wait_list.end())
